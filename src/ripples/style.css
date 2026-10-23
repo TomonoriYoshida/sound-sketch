@@ -68,8 +68,21 @@ canvas {
   color: var(--accent);
 }
 
+.toolbar {
+  flex-wrap: wrap;
+}
+
 .toolbar label {
   cursor: pointer;
+}
+
+.toolbar select {
+  background: #24262e;
+  color: var(--fg);
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: inherit;
 }
 
 .toolbar button {

@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import "./style.css";
+import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker } from "../scales";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
 // 発音は Transport の 16 分音符に揃えるので、どこを叩いてもリズムが崩れない。
@@ -23,8 +24,6 @@ const MAX_RIPPLES = 12;
 const MAX_NOTES_PER_STEP = 3;
 const AUTO_INTERVAL = 4; // 自動で波紋が生まれる平均間隔 (秒)
 
-// C メジャーペンタトニック 3 オクターブ。画面の上ほど高い音
-const NOTES = [3, 4, 5].flatMap((oct) => ["C", "D", "E", "G", "A"].map((n) => `${n}${oct}`));
 // 同じ波紋でも、どの端に当たったかで少し音をずらしてフレーズにする
 const EDGE_OFFSET: Record<Edge, number> = { left: 0, right: 1, top: 2, bottom: -1 };
 
@@ -33,6 +32,14 @@ const g = canvas.getContext("2d")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
+
+// スケールを変えると、これから鳴る音から切り替わる
+let pitches = setupScalePicker(
+  document.querySelector<HTMLSelectElement>("#scale")!,
+  document.querySelector<HTMLSelectElement>("#root")!,
+  { scale: "major-pentatonic", root: "C" },
+  (next) => (pitches = next),
+);
 
 // --- 音 ---
 
@@ -59,17 +66,18 @@ const transport = Tone.getTransport();
 transport.bpm.value = BPM;
 
 // 16 分音符ごとの発音数を数え、同時に鳴りすぎないようにする
-const notesByStep = new Map<number, Set<string>>();
+const notesByStep = new Map<number, Set<number>>();
 
-function play(synth: Tone.PolySynth<any>, note: string, flash: Omit<Flash, "life">) {
+function play(synth: Tone.PolySynth<any>, pitchIndex: number, flash: Omit<Flash, "life">) {
+  const freq = pitchAt(pitches, pitchIndex).freq;
   const time = transport.nextSubdivision("16n");
   const step = Math.round(time * 1000);
-  const notes = notesByStep.get(step) ?? new Set<string>();
-  if (notes.size >= MAX_NOTES_PER_STEP || notes.has(note)) return;
-  notes.add(note);
+  const notes = notesByStep.get(step) ?? new Set<number>();
+  if (notes.size >= MAX_NOTES_PER_STEP || notes.has(freq)) return;
+  notes.add(freq);
   notesByStep.set(step, notes);
 
-  synth.triggerAttackRelease(note, "16n", time);
+  synth.triggerAttackRelease(freq, "16n", time);
   Tone.getDraw().schedule(() => flashes.push({ ...flash, life: 1 }), time);
 
   if (notesByStep.size > 64) {
@@ -78,12 +86,8 @@ function play(synth: Tone.PolySynth<any>, note: string, flash: Omit<Flash, "life
   }
 }
 
-function noteIndexAt(y: number): number {
-  return Math.floor((1 - y / height) * NOTES.length);
-}
-
-function noteAt(index: number): string {
-  return NOTES[Math.min(Math.max(index, 0), NOTES.length - 1)];
+function indexAt(y: number): number {
+  return pitchIndexAt(y, height, pitches.length);
 }
 
 let started = false;
@@ -123,7 +127,7 @@ function update(dt: number) {
     for (const [edge, dist, hx, hy] of edges) {
       if (rp.edgesHit.has(edge) || rp.r < dist) continue;
       rp.edgesHit.add(edge);
-      play(pluck, noteAt(noteIndexAt(rp.y) + EDGE_OFFSET[edge]), { x: hx, y: hy, hue: rp.hue });
+      play(pluck, indexAt(rp.y) + EDGE_OFFSET[edge], { x: hx, y: hy, hue: rp.hue });
     }
   }
 
@@ -139,7 +143,7 @@ function update(dt: number) {
       const t = d === 0 ? 0 : a.r / (a.r + b.r);
       const x = a.x + (b.x - a.x) * t;
       const y = a.y + (b.y - a.y) * t;
-      play(bell, noteAt(noteIndexAt(y)), { x, y, hue: (a.hue + b.hue) / 2 });
+      play(bell, indexAt(y), { x, y, hue: (a.hue + b.hue) / 2 });
     }
   }
 
@@ -152,6 +156,7 @@ function draw() {
   // 少しだけ前のフレームを残して残像にする
   g.fillStyle = "rgba(27, 29, 35, 0.35)";
   g.fillRect(0, 0, width, height);
+  drawPitchGuides(g, width, height, pitches);
 
   for (const rp of ripples) {
     const alpha = 1 - rp.r / rp.maxR;

@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
+import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker } from "../scales";
 
 // 置いた音が、それぞれ少しずつ違う周期でループする。
 // 周期のわずかな差で音どうしの重なり方がゆっくりずれていく（スティーヴ・ライヒのフェイジング）。
@@ -7,7 +8,6 @@ import "../ripples/style.css";
 type Seed = {
   x: number;
   y: number;
-  note: string;
   period: number; // 秒
   t0: number; // 最初に鳴った AudioContext 時刻
   plays: number;
@@ -24,15 +24,21 @@ const IDLE_BEFORE_AUTO = 8; // 操作がない状態が何秒続いたら自動�
 const AUTO_INTERVAL = 3;
 const RING_RADIUS = 14;
 
-// D のペンタトニック 3 オクターブ。画面の上ほど高い音
-const NOTES = [3, 4, 5].flatMap((oct) => ["D", "E", "F#", "A", "B"].map((n) => `${n}${oct}`));
-
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const g = canvas.getContext("2d")!;
 const fadeEl = document.querySelector<HTMLInputElement>("#fade")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
+
+// 種は縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
+// そのためスケールを変えると、置いてある種もその場で新しいスケールの音に置き換わる
+let pitches = setupScalePicker(
+  document.querySelector<HTMLSelectElement>("#scale")!,
+  document.querySelector<HTMLSelectElement>("#root")!,
+  { scale: "major-pentatonic", root: "D" },
+  (next) => (pitches = next),
+);
 
 // --- 音 ---
 
@@ -64,9 +70,8 @@ let height = 0;
 let seeds: Seed[] = [];
 let blooms: Bloom[] = [];
 
-function noteAt(y: number): string {
-  const index = Math.floor((1 - y / height) * NOTES.length);
-  return NOTES[Math.min(Math.max(index, 0), NOTES.length - 1)];
+function pitchOf(seed: Seed) {
+  return pitchAt(pitches, pitchIndexAt(seed.y, height, pitches.length));
 }
 
 function periodAt(x: number): number {
@@ -82,7 +87,6 @@ function plant(x: number, y: number) {
   const seed: Seed = {
     x,
     y,
-    note: noteAt(y),
     period: periodAt(x),
     t0: Tone.now(),
     plays: 0,
@@ -96,7 +100,7 @@ function plant(x: number, y: number) {
       return;
     }
     seed.plays++;
-    synth.triggerAttackRelease(seed.note, "8n", time, 0.3 + 0.7 * strength);
+    synth.triggerAttackRelease(pitchOf(seed).freq, "8n", time, 0.3 + 0.7 * strength);
     Tone.getDraw().schedule(() => blooms.push({ x: seed.x, y: seed.y, life: 1, hue: seed.hue, strength }), time);
   }, seed.period).start(transport.seconds);
 
@@ -107,6 +111,7 @@ function plant(x: number, y: number) {
 function draw() {
   g.fillStyle = "rgba(27, 29, 35, 0.25)";
   g.fillRect(0, 0, width, height);
+  drawPitchGuides(g, width, height, pitches);
 
   for (const b of blooms) {
     const r = RING_RADIUS + (1 - b.life) * (60 + 80 * b.strength);
@@ -142,7 +147,7 @@ function draw() {
     g.fillStyle = `hsla(${s.hue}, 20%, 70%, ${alpha * 0.6})`;
     g.font = "11px system-ui, sans-serif";
     g.textAlign = "center";
-    g.fillText(`${s.note}  ${s.period.toFixed(2)}s`, s.x, s.y + RING_RADIUS + 16);
+    g.fillText(`${pitchOf(s).label}  ${s.period.toFixed(2)}s`, s.x, s.y + RING_RADIUS + 16);
   }
 }
 
