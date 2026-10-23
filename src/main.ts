@@ -79,7 +79,9 @@ function pluckPool(size = 8): Instrument {
 // AudioWorklet で自作した音源。モジュールの読み込みは非同期なので、届いた順にメッセージを送る
 function workletSynth(): Instrument {
   const context = Tone.getContext();
-  const ready = context.addAudioWorkletModule(oscProcessorUrl).then(() => {
+  // Tone の addAudioWorkletModule は最初の 1 モジュールしか読み込まない（PluckSynth が内部で先に使う）ため、
+  // rawContext に直接登録する
+  const ready = context.rawContext.audioWorklet.addModule(oscProcessorUrl).then(() => {
     const node = context.createAudioWorkletNode("osc-processor", { outputChannelCount: [1] });
     Tone.connect(node, out);
     return node;
