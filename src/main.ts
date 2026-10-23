@@ -1,5 +1,7 @@
 import * as Tone from "tone";
 import "./style.css";
+import oscProcessorUrl from "./worklet/osc-processor.ts?worker&url";
+import type { OscMessage, Waveform } from "./worklet/osc-processor";
 
 type Key = { note: string; pcKey: string; black: boolean };
 
@@ -74,6 +76,22 @@ function pluckPool(size = 8): Instrument {
   };
 }
 
+// AudioWorklet で自作した音源。モジュールの読み込みは非同期なので、届いた順にメッセージを送る
+function workletSynth(): Instrument {
+  const context = Tone.getContext();
+  const ready = context.addAudioWorkletModule(oscProcessorUrl).then(() => {
+    const node = context.createAudioWorkletNode("osc-processor", { outputChannelCount: [1] });
+    Tone.connect(node, out);
+    return node;
+  });
+  const send = (msg: OscMessage) => ready.then((node) => node.port.postMessage(msg));
+  return {
+    attack: (freq) => send({ type: "noteOn", freq }),
+    release: (freq) => send({ type: "noteOff", freq }),
+    setWaveform: (type) => send({ type: "waveform", value: type as Waveform }),
+  };
+}
+
 const INSTRUMENTS: Record<string, Instrument> = {
   Synth: polyOf(
     new Tone.PolySynth(Tone.Synth, {
@@ -89,6 +107,7 @@ const INSTRUMENTS: Record<string, Instrument> = {
   })),
   MonoSynth: polyOf(new Tone.PolySynth(Tone.MonoSynth)),
   PluckSynth: pluckPool(),
+  Worklet: workletSynth(),
 };
 
 let instrument = INSTRUMENTS.Synth;
