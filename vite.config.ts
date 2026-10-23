@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         ripples: fileURLToPath(new URL("./ripples.html", import.meta.url)),
+        phase: fileURLToPath(new URL("./phase.html", import.meta.url)),
       },
     },
   },

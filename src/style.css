@@ -32,14 +32,15 @@ h1 {
 }
 
 .nav {
+  position: fixed;
+  top: 12px;
+  left: 16px;
   display: flex;
-  justify-content: center;
   gap: 8px;
-  margin: -8px 0 28px;
 }
 
 .nav a {
-  padding: 6px 14px;
+  padding: 4px 12px;
   border: 1px solid #444;
   border-radius: 999px;
   color: var(--muted);
