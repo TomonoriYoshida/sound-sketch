@@ -11,6 +11,17 @@
 
       <section class="controls">
         <label>
+          音源
+          <select id="instrument">
+            <option value="Synth">Synth</option>
+            <option value="AMSynth">AMSynth</option>
+            <option value="FMSynth">FMSynth</option>
+            <option value="DuoSynth">DuoSynth</option>
+            <option value="MonoSynth">MonoSynth</option>
+            <option value="PluckSynth">PluckSynth</option>
+          </select>
+        </label>
+        <label>
           波形
           <select id="waveform">
             <option value="sine">sine</option>
@@ -35,6 +46,12 @@
           <span>オクターブ <output id="octave-value">0</output></span>
           <input id="octave" type="range" min="-3" max="3" step="1" value="0" />
         </label>
+      </section>
+
+      <section class="controls effects">
+        <label><input id="fx-distortion" type="checkbox" /> Distortion</label>
+        <label><input id="fx-chorus" type="checkbox" /> Chorus</label>
+        <label><input id="fx-delay" type="checkbox" /> Delay</label>
       </section>
 
       <div class="keyboard-scroll">

@@ -12,12 +12,86 @@ const KEYS: Key[] = PC_KEYS.map((pcKey, i) => {
   return { note: `${name}${4 + Math.floor(i / 12)}`, pcKey, black: name.endsWith("#") };
 });
 
-const reverb = new Tone.Reverb({ decay: 2.5, wet: 0.3 }).toDestination();
-const instrument = new Tone.PolySynth(Tone.Synth, {
-  oscillator: { type: "sine" },
-  envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.8 },
-}).connect(reverb);
-instrument.volume.value = -12;
+// 音源 → 音量 → Distortion → Chorus → Delay → Reverb → 出力
+// エフェクトは常に接続しておき、オンオフは wet (エフェクト音の割合) で切り替える
+const out = new Tone.Volume(-12);
+const distortion = new Tone.Distortion({ distortion: 0.4, wet: 0 });
+const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start();
+const delay = new Tone.FeedbackDelay({ delayTime: "8n", feedback: 0.35, wet: 0 });
+const reverb = new Tone.Reverb({ decay: 2.5, wet: 0.3 });
+out.chain(distortion, chorus, delay, reverb, Tone.getDestination());
+
+const EFFECTS = [
+  { id: "fx-distortion", wet: distortion.wet, on: 1 },
+  { id: "fx-chorus", wet: chorus.wet, on: 0.5 },
+  { id: "fx-delay", wet: delay.wet, on: 0.35 },
+];
+
+type Instrument = {
+  attack(freq: number): void;
+  release(freq: number): void;
+  setWaveform?(type: OscillatorType): void;
+};
+
+type PolyLike = {
+  triggerAttack(freq: number): unknown;
+  triggerRelease(freq: number): unknown;
+  set(options: object): unknown;
+  connect(node: Tone.ToneAudioNode): unknown;
+};
+
+function polyOf(
+  synth: PolyLike,
+  waveformOptions = (type: OscillatorType): object => ({ oscillator: { type } }),
+): Instrument {
+  synth.connect(out);
+  return {
+    attack: (freq) => synth.triggerAttack(freq),
+    release: (freq) => synth.triggerRelease(freq),
+    setWaveform: (type) => synth.set(waveformOptions(type)),
+  };
+}
+
+// PluckSynth は PolySynth に載せられないので、複数用意して順番に鳴らす
+function pluckPool(size = 8): Instrument {
+  const voices = Array.from({ length: size }, () => {
+    const voice = new Tone.PluckSynth();
+    voice.connect(out);
+    return voice;
+  });
+  const held = new Map<number, Tone.PluckSynth>();
+  let next = 0;
+  return {
+    attack(freq) {
+      const voice = voices[next++ % size];
+      held.set(freq, voice);
+      voice.triggerAttack(freq);
+    },
+    release(freq) {
+      held.get(freq)?.triggerRelease();
+      held.delete(freq);
+    },
+  };
+}
+
+const INSTRUMENTS: Record<string, Instrument> = {
+  Synth: polyOf(
+    new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.8 },
+    }),
+  ),
+  AMSynth: polyOf(new Tone.PolySynth(Tone.AMSynth)),
+  FMSynth: polyOf(new Tone.PolySynth(Tone.FMSynth)),
+  DuoSynth: polyOf(new Tone.PolySynth(Tone.DuoSynth), (type) => ({
+    voice0: { oscillator: { type } },
+    voice1: { oscillator: { type } },
+  })),
+  MonoSynth: polyOf(new Tone.PolySynth(Tone.MonoSynth)),
+  PluckSynth: pluckPool(),
+};
+
+let instrument = INSTRUMENTS.Synth;
 
 const keyboardEl = document.querySelector<HTMLDivElement>("#keyboard")!;
 const waveformEl = document.querySelector<HTMLSelectElement>("#waveform")!;
@@ -28,27 +102,30 @@ const transposeValueEl = document.querySelector<HTMLOutputElement>("#transpose-v
 const octaveEl = document.querySelector<HTMLInputElement>("#octave")!;
 const octaveValueEl = document.querySelector<HTMLOutputElement>("#octave-value")!;
 
+const instrumentEl = document.querySelector<HTMLSelectElement>("#instrument")!;
+
 const keyEls = new Map<string, HTMLButtonElement>();
-// 鍵盤の音名 → 実際に鳴らした周波数。押している間にトランスポーズが変わっても正しく止めるため
-const pressed = new Map<string, number>();
+// 鍵盤の音名 → 実際に鳴らした周波数と音源。押している間に設定が変わっても正しく止めるため
+const pressed = new Map<string, { freq: number; inst: Instrument }>();
 let transpose = 0;
 let octave = 0;
 
 async function noteOn(note: string) {
   if (pressed.has(note)) return;
   const freq = Tone.Frequency(note).transpose(transpose + octave * 12).toFrequency();
-  pressed.set(note, freq);
+  const inst = instrument;
+  pressed.set(note, { freq, inst });
   keyEls.get(note)?.classList.add("active");
   await Tone.start(); // 自動再生制限の解除（初回操作時のみ実際に効く）
-  instrument.triggerAttack(freq);
+  inst.attack(freq);
 }
 
 function noteOff(note: string) {
-  const freq = pressed.get(note);
-  if (freq === undefined) return;
+  const held = pressed.get(note);
+  if (!held) return;
   pressed.delete(note);
   keyEls.get(note)?.classList.remove("active");
-  instrument.triggerRelease(freq);
+  held.inst.release(held.freq);
 }
 
 for (const key of KEYS) {
@@ -78,12 +155,27 @@ window.addEventListener("keyup", (e) => {
   if (note) noteOff(note);
 });
 
-waveformEl.addEventListener("change", () => {
-  instrument.set({ oscillator: { type: waveformEl.value as OscillatorType } });
+instrumentEl.addEventListener("change", () => {
+  instrument = INSTRUMENTS[instrumentEl.value];
+  waveformEl.disabled = !instrument.setWaveform;
 });
 
+// 波形は全音源にそろえておき、音源を切り替えても選択と一致させる
+waveformEl.addEventListener("change", () => {
+  for (const inst of Object.values(INSTRUMENTS)) {
+    inst.setWaveform?.(waveformEl.value as OscillatorType);
+  }
+});
+
+for (const fx of EFFECTS) {
+  const el = document.querySelector<HTMLInputElement>(`#${fx.id}`)!;
+  el.addEventListener("change", () => {
+    fx.wet.value = el.checked ? fx.on : 0;
+  });
+}
+
 volumeEl.addEventListener("input", () => {
-  instrument.volume.value = Number(volumeEl.value);
+  out.volume.value = Number(volumeEl.value);
 });
 
 reverbEl.addEventListener("input", () => {

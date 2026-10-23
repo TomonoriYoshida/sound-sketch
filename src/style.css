@@ -47,6 +47,16 @@ h1 {
   color: var(--muted);
 }
 
+.controls.effects {
+  margin-top: -16px;
+}
+
+.controls.effects label {
+  flex-direction: row;
+  align-items: center;
+  cursor: pointer;
+}
+
 .keyboard-scroll {
   max-width: 100%;
   overflow-x: auto;
