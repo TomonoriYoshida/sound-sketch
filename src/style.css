@@ -31,6 +31,31 @@ h1 {
   letter-spacing: 0.04em;
 }
 
+.nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: -8px 0 28px;
+}
+
+.nav a {
+  padding: 6px 14px;
+  border: 1px solid #444;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.nav a:hover {
+  color: var(--fg);
+}
+
+.nav a[aria-current="page"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
