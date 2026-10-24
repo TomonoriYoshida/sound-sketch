@@ -1,7 +1,8 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
-import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker } from "../scales";
+import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitches } from "../scales";
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
+import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 
 // 置いた音が、それぞれ少しずつ違う周期でループする。
 // 周期のわずかな差で音どうしの重なり方がゆっくりずれていく（スティーヴ・ライヒのフェイジング）。
@@ -38,9 +39,13 @@ const scalePicker = setupScalePicker(
   document.querySelector<HTMLSelectElement>("#scale")!,
   document.querySelector<HTMLSelectElement>("#root")!,
   { scale: "major-pentatonic", root: "D" },
-  (next) => (pitches = next),
+  (next) => {
+    allPitches = next;
+    pitches = visiblePitches(allPitches, (drift ?? NEUTRAL_DRIFT).register);
+  },
 );
-let pitches = scalePicker.pitches;
+let allPitches = scalePicker.pitches;
+let pitches = visiblePitches(allPitches, 0);
 
 // --- 音 ---
 
@@ -55,20 +60,43 @@ synth.maxPolyphony = 48;
 synth.volume.value = -16;
 
 // 天気: 気温で周期の長さ、風で周期の幅（ずれの速さ）、雨で自動の頻度、雲でリバーブが変わる。
-// 周期はこれから置く種から変わり、置いてある種はそのまま
+// 周期はこれから置く種から変わり、置いてある種はそのまま。
+// 変化: 天気で決まった値を中心に、音域・密度・FM の明るさ・リバーブが経過時間でゆっくり揺れ、
+// 20 分ごとに 5 度上へ転調する。音域と転調は置いてある種にも効く
 let weather: Mood | null = null;
+let drift: Drift | null = null;
 
-function applyWeather(next: Mood | null) {
-  weather = next;
-  reverb.wet.rampTo(0.25 + 0.5 * (next ?? NEUTRAL_MOOD).wetness, 4);
-  if (next) scalePicker.setScale(next.scaleId);
+function applyParams(ramp: number) {
+  const m = weather ?? NEUTRAL_MOOD;
+  const d = drift ?? NEUTRAL_DRIFT;
+  reverb.wet.rampTo(Math.min(Math.max(0.25 + 0.5 * m.wetness + 0.15 * d.reverb, 0), 1), ramp);
+  synth.set({ modulationIndex: 2.5 * 2 ** d.brightness });
+  pitches = visiblePitches(allPitches, d.register);
 }
 
 setupWeather(
   document.querySelector<HTMLInputElement>("#weather")!,
   document.querySelector<HTMLSelectElement>("#place")!,
   document.querySelector<HTMLElement>("#weather-status")!,
-  applyWeather,
+  (next) => {
+    weather = next;
+    applyParams(4);
+    if (next) scalePicker.setScale(next.scaleId);
+  },
+);
+
+setupDrift(
+  document.querySelector<HTMLInputElement>("#drift")!,
+  document.querySelector<HTMLSelectElement>("#drift-speed")!,
+  document.querySelector<HTMLElement>("#drift-status")!,
+  {
+    apply: (next) => {
+      drift = next;
+      applyParams(1);
+    },
+    modulate: () => scalePicker.transposeRoot(7),
+    root: scalePicker.root,
+  },
 );
 
 const transport = Tone.getTransport();
@@ -196,7 +224,8 @@ function frame(now: number) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       plant(Math.random() * width, height * (0.15 + Math.random() * 0.7));
-      untilAuto = (AUTO_INTERVAL / (weather ?? NEUTRAL_MOOD).density) * (0.5 + Math.random());
+      const density = (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT);
+      untilAuto = (AUTO_INTERVAL / density) * (0.5 + Math.random());
     }
   }
 

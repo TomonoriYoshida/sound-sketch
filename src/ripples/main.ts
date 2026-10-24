@@ -1,7 +1,8 @@
 import * as Tone from "tone";
 import "./style.css";
-import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker } from "../scales";
+import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitches } from "../scales";
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
+import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
 // 発音は Transport の 16 分音符に揃えるので、どこを叩いてもリズムが崩れない。
@@ -40,9 +41,13 @@ const scalePicker = setupScalePicker(
   document.querySelector<HTMLSelectElement>("#scale")!,
   document.querySelector<HTMLSelectElement>("#root")!,
   { scale: "major-pentatonic", root: "C" },
-  (next) => (pitches = next),
+  (next) => {
+    allPitches = next;
+    pitches = visiblePitches(allPitches, (drift ?? NEUTRAL_DRIFT).register);
+  },
 );
-let pitches = scalePicker.pitches;
+let allPitches = scalePicker.pitches;
+let pitches = visiblePitches(allPitches, 0);
 
 // --- 音 ---
 
@@ -68,22 +73,43 @@ bell.volume.value = -18;
 const transport = Tone.getTransport();
 transport.bpm.value = BPM;
 
-// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる
+// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる。
+// 変化: 天気で決まった値を中心に、音域・密度・ベルの明るさ・リバーブが経過時間でゆっくり揺れ、20 分ごとに 5 度上へ転調する
 let weather: Mood | null = null;
+let drift: Drift | null = null;
 
-function applyWeather(next: Mood | null) {
-  weather = next;
-  const m = next ?? NEUTRAL_MOOD;
-  transport.bpm.rampTo(BPM * m.speed, 4);
-  reverb.wet.rampTo(0.2 + 0.5 * m.wetness, 4);
-  if (next) scalePicker.setScale(next.scaleId);
+function applyParams(ramp: number) {
+  const m = weather ?? NEUTRAL_MOOD;
+  const d = drift ?? NEUTRAL_DRIFT;
+  transport.bpm.rampTo(BPM * m.speed, ramp);
+  reverb.wet.rampTo(Math.min(Math.max(0.2 + 0.5 * m.wetness + 0.15 * d.reverb, 0), 1), ramp);
+  bell.set({ modulationIndex: 8 * 2 ** d.brightness });
+  pitches = visiblePitches(allPitches, d.register);
 }
 
 setupWeather(
   document.querySelector<HTMLInputElement>("#weather")!,
   document.querySelector<HTMLSelectElement>("#place")!,
   document.querySelector<HTMLElement>("#weather-status")!,
-  applyWeather,
+  (next) => {
+    weather = next;
+    applyParams(4);
+    if (next) scalePicker.setScale(next.scaleId);
+  },
+);
+
+setupDrift(
+  document.querySelector<HTMLInputElement>("#drift")!,
+  document.querySelector<HTMLSelectElement>("#drift-speed")!,
+  document.querySelector<HTMLElement>("#drift-status")!,
+  {
+    apply: (next) => {
+      drift = next;
+      applyParams(1);
+    },
+    modulate: () => scalePicker.transposeRoot(7),
+    root: scalePicker.root,
+  },
 );
 
 // 16 分音符ごとの発音数を数え、同時に鳴りすぎないようにする
@@ -226,7 +252,8 @@ function frame(now: number) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       spawn(Math.random() * width, Math.random() * height);
-      untilAuto = (AUTO_INTERVAL / (weather ?? NEUTRAL_MOOD).density) * (0.5 + Math.random());
+      const density = (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT);
+      untilAuto = (AUTO_INTERVAL / density) * (0.5 + Math.random());
     }
   }
 

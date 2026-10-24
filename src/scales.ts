@@ -36,7 +36,17 @@ export const SCALES: Scale[] = [
 
 export const ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-const OCTAVES = [3, 4, 5];
+// 音域を動かせるよう 5 オクターブ分を持ち、画面にはそのうち 3 オクターブ分を割り当てる
+const OCTAVES = [2, 3, 4, 5, 6];
+const VISIBLE_OCTAVES = 3;
+
+// 画面に割り当てる 3 オクターブ分を切り出す。register（-1〜1）で窓を最大 1 オクターブ、
+// 音階の度数単位でずらすので、音域が動いてもスケールから外れない
+export function visiblePitches(all: Pitch[], register: number): Pitch[] {
+  const perOctave = all.length / OCTAVES.length;
+  const start = perOctave + Math.round(register * perOctave);
+  return all.slice(start, start + perOctave * VISIBLE_OCTAVES);
+}
 
 // 低い順に並んだ音高の一覧。音名は最も近い平均律の音で、ずれていれば ↑↓ を付ける
 export function pitchesOf(scale: Scale, root: string): Pitch[] {
@@ -84,13 +94,18 @@ export function drawPitchGuides(g: CanvasRenderingContext2D, width: number, heig
 }
 
 // スケールと主音のプルダウンを用意し、選択を URL (?scale=…&root=…) と同期する。
-// setScale はプログラムからスケールを変えるとき（天気など）に使う
+// setScale / transposeRoot はプログラムから変えるとき（天気や転調）に使う
 export function setupScalePicker(
   scaleEl: HTMLSelectElement,
   rootEl: HTMLSelectElement,
   defaults: { scale: string; root: string },
   onChange: (pitches: Pitch[]) => void,
-): { pitches: Pitch[]; setScale: (id: string) => void } {
+): {
+  pitches: Pitch[];
+  setScale: (id: string) => void;
+  transposeRoot: (semitones: number) => void;
+  root: () => string;
+} {
   for (const group of new Set(SCALES.map((s) => s.group))) {
     const optgroup = document.createElement("optgroup");
     optgroup.label = group;
@@ -126,5 +141,9 @@ export function setupScalePicker(
     scaleEl.value = id;
     update();
   };
-  return { pitches: current(), setScale };
+  const transposeRoot = (semitones: number) => {
+    rootEl.value = ROOTS[(ROOTS.indexOf(rootEl.value) + semitones + 12) % 12];
+    update();
+  };
+  return { pitches: current(), setScale, transposeRoot, root: () => rootEl.value };
 }
