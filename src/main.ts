@@ -2,6 +2,10 @@ import * as Tone from "tone";
 import "./style.css";
 import oscProcessorUrl from "./worklet/osc-processor.ts?worker&url";
 import type { OscMessage, Waveform } from "./worklet/osc-processor";
+import { syncNavQuery } from "./nav";
+
+// Keyboard ではスケールを使わないが、Ripples / Phase の設定をそのまま次のページへ渡す
+syncNavQuery();
 
 type Key = { note: string; pcKey: string; black: boolean };
 

@@ -1,3 +1,5 @@
+import { syncNavQuery } from "./nav";
+
 // Ripples / Phase で共有するスケール定義と、選択 UI・音高ガイドの描画。
 // steps は主音からの半音数。小数は四分音や平均律から外れた音（ガムランの近似など）。
 
@@ -103,14 +105,20 @@ export function setupScalePicker(
   rootEl.value = rootParam && ROOTS.includes(rootParam) ? rootParam : defaults.root;
 
   const current = () => pitchesOf(SCALES.find((s) => s.id === scaleEl.value)!, rootEl.value);
-  const update = () => {
+  // 初期値も URL に書いておき、別ページへ移ったときにそのページの初期値で上書きされないようにする
+  const writeUrl = () => {
     const url = new URL(location.href);
     url.searchParams.set("scale", scaleEl.value);
     url.searchParams.set("root", rootEl.value);
     history.replaceState(null, "", url);
+    syncNavQuery();
+  };
+  const update = () => {
+    writeUrl();
     onChange(current());
   };
   scaleEl.addEventListener("change", update);
   rootEl.addEventListener("change", update);
+  writeUrl();
   return current();
 }
