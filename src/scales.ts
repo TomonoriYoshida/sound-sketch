@@ -36,15 +36,17 @@ export const SCALES: Scale[] = [
 
 export const ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-// 音域を動かせるよう 5 オクターブ分を持ち、画面にはそのうち 3 オクターブ分を割り当てる
-const OCTAVES = [2, 3, 4, 5, 6];
+// 音域を動かせるよう 7 オクターブ分を持ち、画面にはそのうち 3 オクターブ分を割り当てる
+const OCTAVES = [1, 2, 3, 4, 5, 6, 7];
 const VISIBLE_OCTAVES = 3;
+const MAX_REGISTER = 2; // 窓をずらせる最大オクターブ数
 
-// 画面に割り当てる 3 オクターブ分を切り出す。register（-1〜1）で窓を最大 1 オクターブ、
+// 画面に割り当てる 3 オクターブ分を切り出す。register（オクターブ単位、-2〜2）で窓をずらす。
 // 音階の度数単位でずらすので、音域が動いてもスケールから外れない
 export function visiblePitches(all: Pitch[], register: number): Pitch[] {
   const perOctave = all.length / OCTAVES.length;
-  const start = perOctave + Math.round(register * perOctave);
+  const clamped = Math.min(Math.max(register, -MAX_REGISTER), MAX_REGISTER);
+  const start = MAX_REGISTER * perOctave + Math.round(clamped * perOctave);
   return all.slice(start, start + perOctave * VISIBLE_OCTAVES);
 }
 

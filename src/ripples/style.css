@@ -81,6 +81,11 @@ canvas {
   color: var(--muted);
 }
 
+.toolbar input[type="range"] {
+  width: 70px;
+  vertical-align: middle;
+}
+
 .toolbar select {
   background: #24262e;
   color: var(--fg);

@@ -3,6 +3,7 @@ import "./style.css";
 import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitches } from "../scales";
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
 import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
+import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
 // 発音は Transport の 16 分音符に揃えるので、どこを叩いてもリズムが崩れない。
@@ -43,11 +44,32 @@ const scalePicker = setupScalePicker(
   { scale: "major-pentatonic", root: "C" },
   (next) => {
     allPitches = next;
-    pitches = visiblePitches(allPitches, (drift ?? NEUTRAL_DRIFT).register);
+    pitches = visiblePitches(allPitches, currentRegister());
   },
 );
 let allPitches = scalePicker.pitches;
-let pitches = visiblePitches(allPitches, 0);
+
+// 音域と密度の 5 段階。音域は変化の揺れの中心になり、密度は天気・変化の倍率に掛け合わせる
+let registerLevel = setupLevel(
+  document.querySelector<HTMLInputElement>("#register")!,
+  document.querySelector<HTMLOutputElement>("#register-value")!,
+  "register",
+  (level) => {
+    registerLevel = level;
+    pitches = visiblePitches(allPitches, currentRegister());
+  },
+);
+let densityLevel = setupLevel(
+  document.querySelector<HTMLInputElement>("#density")!,
+  document.querySelector<HTMLOutputElement>("#density-value")!,
+  "density",
+  (level) => (densityLevel = level),
+);
+let pitches = visiblePitches(allPitches, registerOffset(registerLevel));
+
+function currentRegister(): number {
+  return registerOffset(registerLevel) + (drift ?? NEUTRAL_DRIFT).register;
+}
 
 // --- 音 ---
 
@@ -84,7 +106,7 @@ function applyParams(ramp: number) {
   transport.bpm.rampTo(BPM * m.speed, ramp);
   reverb.wet.rampTo(Math.min(Math.max(0.2 + 0.5 * m.wetness + 0.15 * d.reverb, 0), 1), ramp);
   bell.set({ modulationIndex: 8 * 2 ** d.brightness });
-  pitches = visiblePitches(allPitches, d.register);
+  pitches = visiblePitches(allPitches, currentRegister());
 }
 
 setupWeather(
@@ -252,7 +274,8 @@ function frame(now: number) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       spawn(Math.random() * width, Math.random() * height);
-      const density = (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT);
+      const density =
+        (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel);
       untilAuto = (AUTO_INTERVAL / density) * (0.5 + Math.random());
     }
   }

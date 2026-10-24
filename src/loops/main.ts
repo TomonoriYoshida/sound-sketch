@@ -3,6 +3,7 @@ import "../ripples/style.css";
 import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitches } from "../scales";
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
 import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
+import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 
 // 長さが大きく違うテープループを重ねる（イーノ『Music for Airports』の手法）。
 // 1 本のループには長く柔らかい音が 1 つだけ入っていて、ループどうしの長さが割り切れないので
@@ -23,7 +24,7 @@ const HALF_RANGE = 10; // 標準では左端 15 秒〜右端 35 秒
 const MIN_PERIOD = 8;
 const NOTE_LENGTH = 4; // 1 回に鳴らす長さ (秒)
 const MAX_LOOPS = 10;
-const AUTO_MAX_LOOPS = 6; // 自動で置くのはここまで
+const AUTO_MAX_LOOPS = 6; // 密度 3 のとき、自動で置くのはここまで
 const IDLE_BEFORE_AUTO = 10;
 const AUTO_INTERVAL = 20;
 const HIT_RADIUS = 16; // ループの中心からこの距離以内のクリックで外す
@@ -41,11 +42,32 @@ const scalePicker = setupScalePicker(
   { scale: "major-pentatonic", root: "F" },
   (next) => {
     allPitches = next;
-    pitches = visiblePitches(allPitches, (drift ?? NEUTRAL_DRIFT).register);
+    pitches = visiblePitches(allPitches, currentRegister());
   },
 );
 let allPitches = scalePicker.pitches;
-let pitches = visiblePitches(allPitches, 0);
+
+// 音域と密度の 5 段階。音域は変化の揺れの中心になり、密度は天気・変化の倍率に掛け合わせる
+let registerLevel = setupLevel(
+  document.querySelector<HTMLInputElement>("#register")!,
+  document.querySelector<HTMLOutputElement>("#register-value")!,
+  "register",
+  (level) => {
+    registerLevel = level;
+    pitches = visiblePitches(allPitches, currentRegister());
+  },
+);
+let densityLevel = setupLevel(
+  document.querySelector<HTMLInputElement>("#density")!,
+  document.querySelector<HTMLOutputElement>("#density-value")!,
+  "density",
+  (level) => (densityLevel = level),
+);
+let pitches = visiblePitches(allPitches, registerOffset(registerLevel));
+
+function currentRegister(): number {
+  return registerOffset(registerLevel) + (drift ?? NEUTRAL_DRIFT).register;
+}
 
 // --- 音 ---
 
@@ -70,7 +92,7 @@ function applyParams(ramp: number) {
   const d = drift ?? NEUTRAL_DRIFT;
   reverb.wet.rampTo(Math.min(Math.max(0.35 + 0.5 * m.wetness + 0.15 * d.reverb, 0), 1), ramp);
   filter.frequency.rampTo(1800 * 2 ** d.brightness, ramp);
-  pitches = visiblePitches(allPitches, d.register);
+  pitches = visiblePitches(allPitches, currentRegister());
 }
 
 setupWeather(
@@ -124,6 +146,11 @@ function periodAt(x: number): number {
   const m = weather ?? NEUTRAL_MOOD;
   const halfRange = HALF_RANGE * (0.5 + 1.5 * m.spread);
   return Math.max(MIN_PERIOD, (CENTER_PERIOD + (x / width * 2 - 1) * halfRange) / m.speed);
+}
+
+// 密度が高いほど、自動で置くループの上限を増やす（4〜10 本）
+function autoMaxLoops(): number {
+  return Math.min(MAX_LOOPS, Math.round(AUTO_MAX_LOOPS * Math.sqrt(densityLevelFactor(densityLevel))));
 }
 
 function ringRadius(l: TapeLoop): number {
@@ -218,11 +245,12 @@ function frame(now: number) {
   last = now;
 
   idle += dt;
-  if (started && autoEl.checked && idle > IDLE_BEFORE_AUTO && loops.length < AUTO_MAX_LOOPS) {
+  if (started && autoEl.checked && idle > IDLE_BEFORE_AUTO && loops.length < autoMaxLoops()) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       place(Math.random() * width, height * (0.15 + Math.random() * 0.7));
-      const density = (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT);
+      const density =
+        (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel);
       untilAuto = (AUTO_INTERVAL / density) * (0.5 + Math.random());
     }
   }
