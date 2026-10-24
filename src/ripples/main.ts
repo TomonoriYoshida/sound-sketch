@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import "./style.css";
 import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker } from "../scales";
+import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
 // 発音は Transport の 16 分音符に揃えるので、どこを叩いてもリズムが崩れない。
@@ -11,6 +12,7 @@ type Ripple = {
   x: number;
   y: number;
   r: number;
+  speed: number; // px/秒
   maxR: number;
   hue: number;
   edgesHit: Set<Edge>;
@@ -34,12 +36,13 @@ const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
 // スケールを変えると、これから鳴る音から切り替わる
-let pitches = setupScalePicker(
+const scalePicker = setupScalePicker(
   document.querySelector<HTMLSelectElement>("#scale")!,
   document.querySelector<HTMLSelectElement>("#root")!,
   { scale: "major-pentatonic", root: "C" },
   (next) => (pitches = next),
 );
+let pitches = scalePicker.pitches;
 
 // --- 音 ---
 
@@ -64,6 +67,24 @@ bell.volume.value = -18;
 
 const transport = Tone.getTransport();
 transport.bpm.value = BPM;
+
+// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる
+let weather: Mood | null = null;
+
+function applyWeather(next: Mood | null) {
+  weather = next;
+  const m = next ?? NEUTRAL_MOOD;
+  transport.bpm.rampTo(BPM * m.speed, 4);
+  reverb.wet.rampTo(0.2 + 0.5 * m.wetness, 4);
+  if (next) scalePicker.setScale(next.scaleId);
+}
+
+setupWeather(
+  document.querySelector<HTMLInputElement>("#weather")!,
+  document.querySelector<HTMLSelectElement>("#place")!,
+  document.querySelector<HTMLElement>("#weather-status")!,
+  applyWeather,
+);
 
 // 16 分音符ごとの発音数を数え、同時に鳴りすぎないようにする
 const notesByStep = new Map<number, Set<number>>();
@@ -110,12 +131,15 @@ let flashes: Flash[] = [];
 
 function spawn(x: number, y: number) {
   const maxR = Math.max(Math.hypot(x, y), Math.hypot(width - x, y), Math.hypot(x, height - y), Math.hypot(width - x, height - y));
-  ripples.push({ id: nextId++, x, y, r: 0, maxR, hue: 180 + Math.random() * 120, edgesHit: new Set(), touched: new Set() });
+  const m = weather ?? NEUTRAL_MOOD;
+  const variance = weather ? 0.3 * weather.spread : 0;
+  const speed = SPEED * m.speed * (1 + (Math.random() * 2 - 1) * variance);
+  ripples.push({ id: nextId++, x, y, r: 0, speed, maxR, hue: 180 + Math.random() * 120, edgesHit: new Set(), touched: new Set() });
   if (ripples.length > MAX_RIPPLES) ripples.shift();
 }
 
 function update(dt: number) {
-  for (const rp of ripples) rp.r += SPEED * dt;
+  for (const rp of ripples) rp.r += rp.speed * dt;
 
   for (const rp of ripples) {
     const edges: [Edge, number, number, number][] = [
@@ -202,7 +226,7 @@ function frame(now: number) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       spawn(Math.random() * width, Math.random() * height);
-      untilAuto = AUTO_INTERVAL * (0.5 + Math.random());
+      untilAuto = (AUTO_INTERVAL / (weather ?? NEUTRAL_MOOD).density) * (0.5 + Math.random());
     }
   }
 

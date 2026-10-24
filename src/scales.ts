@@ -83,13 +83,14 @@ export function drawPitchGuides(g: CanvasRenderingContext2D, width: number, heig
   });
 }
 
-// スケールと主音のプルダウンを用意し、選択を URL (?scale=…&root=…) と同期する
+// スケールと主音のプルダウンを用意し、選択を URL (?scale=…&root=…) と同期する。
+// setScale はプログラムからスケールを変えるとき（天気など）に使う
 export function setupScalePicker(
   scaleEl: HTMLSelectElement,
   rootEl: HTMLSelectElement,
   defaults: { scale: string; root: string },
   onChange: (pitches: Pitch[]) => void,
-): Pitch[] {
+): { pitches: Pitch[]; setScale: (id: string) => void } {
   for (const group of new Set(SCALES.map((s) => s.group))) {
     const optgroup = document.createElement("optgroup");
     optgroup.label = group;
@@ -120,5 +121,10 @@ export function setupScalePicker(
   scaleEl.addEventListener("change", update);
   rootEl.addEventListener("change", update);
   writeUrl();
-  return current();
+  const setScale = (id: string) => {
+    if (scaleEl.value === id) return;
+    scaleEl.value = id;
+    update();
+  };
+  return { pitches: current(), setScale };
 }

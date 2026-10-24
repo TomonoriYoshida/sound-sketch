@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
 import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker } from "../scales";
+import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
 
 // 置いた音が、それぞれ少しずつ違う周期でループする。
 // 周期のわずかな差で音どうしの重なり方がゆっくりずれていく（スティーヴ・ライヒのフェイジング）。
@@ -16,8 +17,8 @@ type Seed = {
 };
 type Bloom = { x: number; y: number; life: number; hue: number; strength: number };
 
-const MIN_PERIOD = 2.0; // 画面左端の周期 (秒)
-const MAX_PERIOD = 2.6; // 画面右端の周期 (秒)
+const CENTER_PERIOD = 2.3; // 画面中央の周期 (秒)
+const HALF_RANGE = 0.3; // 標準では左端 2.0 秒〜右端 2.6 秒
 const MAX_SEEDS = 16;
 const FADE_PLAYS = 16; // 減衰オンのとき、何回鳴ったら消えるか
 const IDLE_BEFORE_AUTO = 8; // 操作がない状態が何秒続いたら自動で置き始めるか
@@ -33,12 +34,13 @@ const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
 // 種は縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
 // そのためスケールを変えると、置いてある種もその場で新しいスケールの音に置き換わる
-let pitches = setupScalePicker(
+const scalePicker = setupScalePicker(
   document.querySelector<HTMLSelectElement>("#scale")!,
   document.querySelector<HTMLSelectElement>("#root")!,
   { scale: "major-pentatonic", root: "D" },
   (next) => (pitches = next),
 );
+let pitches = scalePicker.pitches;
 
 // --- 音 ---
 
@@ -51,6 +53,23 @@ const synth = new Tone.PolySynth(Tone.FMSynth, {
 }).connect(reverb);
 synth.maxPolyphony = 48;
 synth.volume.value = -16;
+
+// 天気: 気温で周期の長さ、風で周期の幅（ずれの速さ）、雨で自動の頻度、雲でリバーブが変わる。
+// 周期はこれから置く種から変わり、置いてある種はそのまま
+let weather: Mood | null = null;
+
+function applyWeather(next: Mood | null) {
+  weather = next;
+  reverb.wet.rampTo(0.25 + 0.5 * (next ?? NEUTRAL_MOOD).wetness, 4);
+  if (next) scalePicker.setScale(next.scaleId);
+}
+
+setupWeather(
+  document.querySelector<HTMLInputElement>("#weather")!,
+  document.querySelector<HTMLSelectElement>("#place")!,
+  document.querySelector<HTMLElement>("#weather-status")!,
+  applyWeather,
+);
 
 const transport = Tone.getTransport();
 let started = false;
@@ -75,7 +94,9 @@ function pitchOf(seed: Seed) {
 }
 
 function periodAt(x: number): number {
-  return MIN_PERIOD + (x / width) * (MAX_PERIOD - MIN_PERIOD);
+  const m = weather ?? NEUTRAL_MOOD;
+  const halfRange = HALF_RANGE * (0.5 + 1.5 * m.spread);
+  return (CENTER_PERIOD + (x / width * 2 - 1) * halfRange) / m.speed;
 }
 
 function removeSeed(seed: Seed) {
@@ -175,7 +196,7 @@ function frame(now: number) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       plant(Math.random() * width, height * (0.15 + Math.random() * 0.7));
-      untilAuto = AUTO_INTERVAL * (0.5 + Math.random());
+      untilAuto = (AUTO_INTERVAL / (weather ?? NEUTRAL_MOOD).density) * (0.5 + Math.random());
     }
   }
 

@@ -76,6 +76,11 @@ canvas {
   cursor: pointer;
 }
 
+.toolbar .status {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .toolbar select {
   background: #24262e;
   color: var(--fg);
