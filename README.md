@@ -28,8 +28,13 @@ No sound? On iPhone, turn off silent mode.
 - [Vite](https://vite.dev/) + TypeScript
 - 天気データ / Weather data: [Open-Meteo.com](https://open-meteo.com/)（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）
 
-「天気」をオンにして「現在地」を選ぶと、ブラウザの位置情報を小数点以下 2 桁（約 1 km）に丸めて Open-Meteo に送ります。それ以外の情報は送信・保存しません。
-When weather is on with “Current location”, your browser location is rounded to two decimal places (about 1 km) and sent to Open-Meteo. Nothing else is sent or stored.
+「天気」をオンにして「現在地」を選ぶと、ブラウザの位置情報を小数点以下 2 桁（約 1 km）に丸めて Open-Meteo に送ります。
+アクセス数の計測に [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/) を使っています。Cookie を使わず、個人を特定する情報は集めません。
+それ以外の情報は送信しません。ブラウザには、表示言語と説明のオン・オフだけを保存します。
+
+When weather is on with “Current location”, your browser location is rounded to two decimal places (about 1 km) and sent to Open-Meteo.
+Page views are measured with [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/), which uses no cookies and collects no personally identifying information.
+Nothing else is sent. Only your language and help on/off choices are stored in your browser.
 
 ## 開発 / Development
 
