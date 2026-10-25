@@ -123,8 +123,13 @@ export function setupHelp() {
       badge.className = "help-badge";
       badge.textContent = "?";
       badge.setAttribute("aria-label", `${help.title}の説明`);
-      badge.addEventListener("click", () => open(help));
-      el.after(badge);
+      badge.addEventListener("click", (e) => {
+        e.preventDefault(); // ラベルの中に置いたときに、チェックボックスなどが切り替わらないようにする
+        open(help);
+      });
+      // ラベルは行の中（操作する部品のすぐ右）に、それ以外は要素の直後に置く
+      if (el instanceof HTMLLabelElement) el.append(badge);
+      else el.after(badge);
     }
   }
 

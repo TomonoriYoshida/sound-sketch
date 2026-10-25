@@ -173,6 +173,22 @@ canvas {
   cursor: pointer;
 }
 
+/* 名前は左、操作する部品は右に寄せる。「?」のバッジは部品のすぐ右に並ぶ */
+.settings label > select,
+.settings label > input,
+.settings label > .range {
+  margin-left: auto;
+}
+
+.settings .help-badge {
+  flex: none;
+  margin-left: -4px;
+}
+
+.settings > section > button + .help-badge {
+  margin-left: 8px;
+}
+
 .settings .range {
   display: flex;
   align-items: center;
@@ -249,6 +265,71 @@ input:disabled {
   color: var(--muted);
   opacity: 0.7;
   pointer-events: none;
+}
+
+/* --- スマホ: バーを 2 段にしてナビは横スクロール、設定パネルは画面の下から出すシートにする --- */
+
+@media (max-width: 640px) {
+  .bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .nav {
+    flex: 1 0 100%;
+    margin-right: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav a {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .bar-actions {
+    flex: 1 0 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .chrome-show {
+    top: 10px;
+    left: 12px;
+  }
+
+  .settings {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 70vh;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 14px 14px 0 0;
+    font-size: 15px;
+  }
+
+  .settings label {
+    min-height: 40px;
+  }
+
+  .settings input[type="range"] {
+    width: 130px;
+  }
+
+  .status-line {
+    left: 12px;
+    right: 12px;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
 }
 
 .hint {
