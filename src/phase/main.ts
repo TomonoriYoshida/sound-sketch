@@ -1,13 +1,7 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
-import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitches } from "../scales";
-import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
-import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
-import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
-import { setupHelp } from "../help";
-import { setupChrome } from "../chrome";
-import { protectOutput } from "../audio";
-import { setupI18n } from "../i18n";
+import { drawPitchGuides, pitchAt, pitchIndexAt } from "../scales";
+import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
 
 // 置いた音が、それぞれ少しずつ違う周期でループする。
 // 周期のわずかな差で音どうしの重なり方がゆっくりずれていく（スティーヴ・ライヒのフェイジング）。
@@ -31,7 +25,6 @@ const AUTO_INTERVAL = 3;
 const RING_RADIUS = 14;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
-const g = canvas.getContext("2d")!;
 const fadeEl = document.querySelector<HTMLInputElement>("#fade")!;
 const modeEl = document.querySelector<HTMLSelectElement>("#mode")!;
 const phraseLengthEl = document.querySelector<HTMLSelectElement>("#phrase-length")!;
@@ -40,47 +33,21 @@ const phraseTempoEl = document.querySelector<HTMLInputElement>("#phrase-tempo")!
 const phraseTempoValueEl = document.querySelector<HTMLOutputElement>("#phrase-tempo-value")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
-const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
-
-protectOutput();
-setupI18n();
-setupChrome();
-setupHelp();
 
 // 種は縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
-// そのためスケールを変えると、置いてある種もその場で新しいスケールの音に置き換わる
-const scalePicker = setupScalePicker(
-  document.querySelector<HTMLSelectElement>("#scale")!,
-  document.querySelector<HTMLSelectElement>("#root")!,
-  { scale: "major-pentatonic", root: "D" },
-  (next) => {
-    allPitches = next;
-    pitches = visiblePitches(allPitches, currentRegister());
+// そのためスケールを変えると、置いてある種もその場で新しいスケールの音に置き換わる。
+// 天気: 気温で周期の長さ、風で周期の幅（ずれの速さ）、雨で自動の頻度、雲でリバーブが変わる。
+// 周期はこれから置く種から変わり、置いてある種はそのまま。
+// 変化: 天気で決まった値を中心に、音域・密度・FM の明るさ・リバーブが経過時間でゆっくり揺れ、
+// 20 分ごとに 5 度上へ転調する。音域と転調は置いてある種にも効く
+const page = setupGenerativePage({
+  defaults: { scale: "major-pentatonic", root: "D" },
+  applyParams: (params) => {
+    reverb.wet.rampTo(reverbWet(0.25, params), params.ramp);
+    synth.set({ modulationIndex: 2.5 * 2 ** params.drift.brightness });
   },
-);
-let allPitches = scalePicker.pitches;
-
-// 音域と密度の 5 段階。音域は変化の揺れの中心になり、密度は天気・変化の倍率に掛け合わせる
-let registerLevel = setupLevel(
-  document.querySelector<HTMLInputElement>("#register")!,
-  document.querySelector<HTMLOutputElement>("#register-value")!,
-  "register",
-  (level) => {
-    registerLevel = level;
-    pitches = visiblePitches(allPitches, currentRegister());
-  },
-);
-let densityLevel = setupLevel(
-  document.querySelector<HTMLInputElement>("#density")!,
-  document.querySelector<HTMLOutputElement>("#density-value")!,
-  "density",
-  (level) => (densityLevel = level),
-);
-let pitches = visiblePitches(allPitches, registerOffset(registerLevel));
-
-function currentRegister(): number {
-  return registerOffset(registerLevel) + (drift ?? NEUTRAL_DRIFT).register;
-}
+});
+const { transport } = page;
 
 // --- 音 ---
 
@@ -94,66 +61,20 @@ const synth = new Tone.PolySynth(Tone.FMSynth, {
 synth.maxPolyphony = 64; // フレーズモードでは 1 周に複数の音が重なる
 synth.volume.value = -16;
 
-// 天気: 気温で周期の長さ、風で周期の幅（ずれの速さ）、雨で自動の頻度、雲でリバーブが変わる。
-// 周期はこれから置く種から変わり、置いてある種はそのまま。
-// 変化: 天気で決まった値を中心に、音域・密度・FM の明るさ・リバーブが経過時間でゆっくり揺れ、
-// 20 分ごとに 5 度上へ転調する。音域と転調は置いてある種にも効く
-let weather: Mood | null = null;
-let drift: Drift | null = null;
-
-function applyParams(ramp: number) {
-  const m = weather ?? NEUTRAL_MOOD;
-  const d = drift ?? NEUTRAL_DRIFT;
-  reverb.wet.rampTo(Math.min(Math.max(0.25 + 0.5 * m.wetness + 0.15 * d.reverb, 0), 1), ramp);
-  synth.set({ modulationIndex: 2.5 * 2 ** d.brightness });
-  pitches = visiblePitches(allPitches, currentRegister());
-}
-
-setupWeather(
-  document.querySelector<HTMLInputElement>("#weather")!,
-  document.querySelector<HTMLSelectElement>("#place")!,
-  document.querySelector<HTMLElement>("#weather-status")!,
-  (next) => {
-    weather = next;
-    applyParams(4);
-    if (next) scalePicker.setScale(next.scaleId);
-  },
-);
-
-setupDrift(
-  document.querySelector<HTMLInputElement>("#drift")!,
-  document.querySelector<HTMLSelectElement>("#drift-speed")!,
-  document.querySelector<HTMLElement>("#drift-status")!,
-  {
-    apply: (next) => {
-      drift = next;
-      applyParams(1);
-    },
-    modulate: () => scalePicker.transposeRoot(7),
-    root: scalePicker.root,
-  },
-);
-
-const transport = Tone.getTransport();
-let started = false;
-
-async function ensureStarted() {
-  if (started) return;
-  started = true;
-  await Tone.start();
-  transport.start();
-  hintEl.classList.add("hidden");
-}
-
 // --- 種 ---
 
 let width = 0;
 let height = 0;
+const g = setupCanvas(canvas, (w, h) => {
+  width = w;
+  height = h;
+});
 let seeds: Seed[] = [];
 let blooms: Bloom[] = [];
 
 // degree はフレーズ内の音の、出だしからのスケール上の度数
 function pitchOf(seed: Seed, degree = 0) {
+  const pitches = page.pitches();
   return pitchAt(pitches, pitchIndexAt(seed.y, height, pitches.length) + degree);
 }
 
@@ -206,7 +127,7 @@ generatePhrase();
 updatePhraseControls();
 
 function periodAt(x: number): number {
-  const m = weather ?? NEUTRAL_MOOD;
+  const m = page.mood();
   const halfRange = HALF_RANGE * (0.5 + 1.5 * m.spread);
   return (CENTER_PERIOD + (x / width * 2 - 1) * halfRange) / m.speed;
 }
@@ -254,7 +175,7 @@ function plant(x: number, y: number) {
 function draw() {
   g.fillStyle = "rgba(27, 29, 35, 0.25)";
   g.fillRect(0, 0, width, height);
-  drawPitchGuides(g, width, height, pitches);
+  drawPitchGuides(g, width, height, page.pitches());
 
   for (const b of blooms) {
     const r = RING_RADIUS + (1 - b.life) * (60 + 80 * b.strength);
@@ -295,15 +216,6 @@ function draw() {
 
 // --- 画面とループ ---
 
-function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  width = window.innerWidth;
-  height = window.innerHeight;
-  canvas.width = width * dpr;
-  canvas.height = height * dpr;
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-
 let last = performance.now();
 let idle = 0;
 let untilAuto = 0;
@@ -313,13 +225,11 @@ function frame(now: number) {
   last = now;
 
   idle += dt;
-  if (started && autoEl.checked && idle > IDLE_BEFORE_AUTO) {
+  if (page.started() && autoEl.checked && idle > IDLE_BEFORE_AUTO) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       plant(Math.random() * width, height * (0.15 + Math.random() * 0.7));
-      const density =
-        (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel);
-      untilAuto = (AUTO_INTERVAL / density) * (0.5 + Math.random());
+      untilAuto = (AUTO_INTERVAL / page.autoDensity()) * (0.5 + Math.random());
     }
   }
 
@@ -331,7 +241,7 @@ function frame(now: number) {
 }
 
 canvas.addEventListener("pointerdown", async (e) => {
-  await ensureStarted();
+  await page.ensureStarted();
   idle = 0;
   plant(e.clientX, e.clientY);
 });
@@ -341,6 +251,4 @@ clearEl.addEventListener("click", () => {
   blooms = [];
 });
 
-window.addEventListener("resize", resize);
-resize();
 requestAnimationFrame(frame);

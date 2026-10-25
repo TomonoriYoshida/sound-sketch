@@ -1,5 +1,6 @@
 import { syncNavQuery } from "./nav";
-import { type L, onLangChange, t } from "./i18n";
+import type { L } from "./i18n";
+import { fillGroupedSelect } from "./select";
 
 // Ripples / Phase で共有するスケール定義と、選択 UI・音高ガイドの描画。
 // steps は主音からの半音数。小数は四分音や平均律から外れた音（ガムランの近似など）。
@@ -119,23 +120,11 @@ export function setupScalePicker(
   transposeRoot: (semitones: number) => void;
   root: () => string;
 } {
-  const optgroups = new Map<string, HTMLOptGroupElement>();
-  for (const s of SCALES) {
-    let optgroup = optgroups.get(s.group);
-    if (!optgroup) {
-      optgroup = document.createElement("optgroup");
-      optgroups.set(s.group, optgroup);
-      scaleEl.append(optgroup);
-    }
-    optgroup.append(new Option("", s.id));
-  }
-  // 言語を切り替えたら、選択はそのままで表示名だけ書き換える
-  const renderNames = () => {
-    for (const [group, optgroup] of optgroups) optgroup.label = t(GROUP_NAMES[group]);
-    for (const option of scaleEl.options) option.text = t(SCALES.find((s) => s.id === option.value)!.name);
-  };
-  renderNames();
-  onLangChange(renderNames);
+  fillGroupedSelect(
+    scaleEl,
+    SCALES.map((s) => ({ value: s.id, group: s.group, name: s.name })),
+    GROUP_NAMES,
+  );
   for (const r of ROOTS) rootEl.append(new Option(r, r));
 
   const params = new URLSearchParams(location.search);

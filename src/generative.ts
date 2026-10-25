@@ -1,0 +1,148 @@
+import * as Tone from "tone";
+import { protectOutput } from "./audio";
+import { setupChrome } from "./chrome";
+import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "./drift";
+import { setupHelp } from "./help";
+import { setupI18n } from "./i18n";
+import { densityLevelFactor, registerOffset, setupLevel } from "./levels";
+import { clamp01 } from "./math";
+import { type Pitch, setupScalePicker, visiblePitches } from "./scales";
+import { type Mood, NEUTRAL_MOOD, setupWeather } from "./weather";
+
+// Ripples / Phase / Loops に共通の土台。
+// スケール・主音・音域・密度・天気・変化をつなぎ、画面に割り当てる音高と、ページ固有の音（テンポ・リバーブ・音色など）を更新する。
+// 音域は「段階 + 変化の揺れ」、自動で置く頻度は「天気 × 変化 × 密度の段階」で決まる
+
+export type SoundParams = {
+  mood: Omit<Mood, "scaleId" | "icon">; // 天気（オフのときは標準値）
+  drift: Drift; // 変化（オフのときは標準値）
+  ramp: number; // 値を移す時間 (秒)
+};
+
+// リバーブの深さ。ページごとの基準値に、雲の量と変化の揺れを足す
+export function reverbWet(base: number, { mood, drift }: SoundParams): number {
+  return clamp01(base + 0.5 * mood.wetness + 0.15 * drift.reverb);
+}
+
+export function setupGenerativePage(options: {
+  defaults: { scale: string; root: string };
+  // 天気・変化の値が変わったときに、ページ固有の音に反映する
+  applyParams: (params: SoundParams) => void;
+}) {
+  protectOutput();
+  setupI18n();
+  setupChrome();
+  setupHelp();
+
+  const hintEl = document.querySelector<HTMLElement>("#hint")!;
+  const transport = Tone.getTransport();
+
+  let weather: Mood | null = null;
+  let drift: Drift | null = null;
+  let allPitches: Pitch[] = [];
+  let pitches: Pitch[] = [];
+
+  const updatePitches = () => {
+    pitches = visiblePitches(allPitches, registerOffset(registerLevel) + (drift ?? NEUTRAL_DRIFT).register);
+  };
+
+  const scalePicker = setupScalePicker(
+    document.querySelector<HTMLSelectElement>("#scale")!,
+    document.querySelector<HTMLSelectElement>("#root")!,
+    options.defaults,
+    (next) => {
+      allPitches = next;
+      updatePitches();
+    },
+  );
+  allPitches = scalePicker.pitches;
+
+  let registerLevel = setupLevel(
+    document.querySelector<HTMLInputElement>("#register")!,
+    document.querySelector<HTMLOutputElement>("#register-value")!,
+    "register",
+    (level) => {
+      registerLevel = level;
+      updatePitches();
+    },
+  );
+  let densityLevel = setupLevel(
+    document.querySelector<HTMLInputElement>("#density")!,
+    document.querySelector<HTMLOutputElement>("#density-value")!,
+    "density",
+    (level) => (densityLevel = level),
+  );
+  updatePitches();
+
+  const apply = (ramp: number) => {
+    options.applyParams({ mood: weather ?? NEUTRAL_MOOD, drift: drift ?? NEUTRAL_DRIFT, ramp });
+    updatePitches();
+  };
+
+  setupWeather(
+    document.querySelector<HTMLInputElement>("#weather")!,
+    document.querySelector<HTMLSelectElement>("#place")!,
+    document.querySelector<HTMLElement>("#weather-status")!,
+    (next) => {
+      weather = next;
+      apply(4);
+      if (next) scalePicker.setScale(next.scaleId);
+    },
+  );
+
+  setupDrift(
+    document.querySelector<HTMLInputElement>("#drift")!,
+    document.querySelector<HTMLSelectElement>("#drift-speed")!,
+    document.querySelector<HTMLElement>("#drift-status")!,
+    {
+      apply: (next) => {
+        drift = next;
+        apply(1);
+      },
+      modulate: () => scalePicker.transposeRoot(7),
+      root: scalePicker.root,
+    },
+  );
+
+  let started = false;
+
+  return {
+    transport,
+    // 画面に割り当てている音高（低い順）
+    pitches: () => pitches,
+    // 天気がオンのときだけ値がある
+    weather: () => weather,
+    mood: () => weather ?? NEUTRAL_MOOD,
+    densityLevel: () => densityLevel,
+    // 自動で置く頻度の倍率
+    autoDensity: () =>
+      (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel),
+    started: () => started,
+    // 最初の操作で音を出せる状態にし、ヒントを消す
+    async ensureStarted() {
+      if (started) return;
+      started = true;
+      await Tone.start();
+      transport.start();
+      hintEl.classList.add("hidden");
+    },
+  };
+}
+
+// キャンバスを画面いっぱいにし、高解像度の画面でもにじまないようにする。大きさが変わるたびに onResize を呼ぶ
+export function setupCanvas(
+  canvas: HTMLCanvasElement,
+  onResize: (width: number, height: number) => void,
+): CanvasRenderingContext2D {
+  const g = canvas.getContext("2d")!;
+  const resize = () => {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    onResize(window.innerWidth, window.innerHeight);
+  };
+  window.addEventListener("resize", resize);
+  resize();
+  return g;
+}

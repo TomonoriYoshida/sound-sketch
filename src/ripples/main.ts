@@ -1,13 +1,7 @@
 import * as Tone from "tone";
 import "./style.css";
-import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitches } from "../scales";
-import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
-import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
-import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
-import { setupHelp } from "../help";
-import { setupChrome } from "../chrome";
-import { protectOutput } from "../audio";
-import { setupI18n } from "../i18n";
+import { drawPitchGuides, pitchAt, pitchIndexAt } from "../scales";
+import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
 // 発音は Transport の 16 分音符に揃えるので、どこを叩いてもリズムが崩れない。
@@ -36,49 +30,21 @@ const AUTO_INTERVAL = 4; // 自動で波紋が生まれる平均間隔 (秒)
 const EDGE_OFFSET: Record<Edge, number> = { left: 0, right: 1, top: 2, bottom: -1 };
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
-const g = canvas.getContext("2d")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
-const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
-protectOutput();
-setupI18n();
-setupChrome();
-setupHelp();
-
-// スケールを変えると、これから鳴る音から切り替わる
-const scalePicker = setupScalePicker(
-  document.querySelector<HTMLSelectElement>("#scale")!,
-  document.querySelector<HTMLSelectElement>("#root")!,
-  { scale: "major-pentatonic", root: "C" },
-  (next) => {
-    allPitches = next;
-    pitches = visiblePitches(allPitches, currentRegister());
+// スケールを変えると、これから鳴る音から切り替わる。
+// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる。
+// 変化: 天気で決まった値を中心に、音域・密度・ベルの明るさ・リバーブが経過時間でゆっくり揺れ、20 分ごとに 5 度上へ転調する
+const page = setupGenerativePage({
+  defaults: { scale: "major-pentatonic", root: "C" },
+  applyParams: (params) => {
+    transport.bpm.rampTo(BPM * params.mood.speed, params.ramp);
+    reverb.wet.rampTo(reverbWet(0.2, params), params.ramp);
+    bell.set({ modulationIndex: 8 * 2 ** params.drift.brightness });
   },
-);
-let allPitches = scalePicker.pitches;
-
-// 音域と密度の 5 段階。音域は変化の揺れの中心になり、密度は天気・変化の倍率に掛け合わせる
-let registerLevel = setupLevel(
-  document.querySelector<HTMLInputElement>("#register")!,
-  document.querySelector<HTMLOutputElement>("#register-value")!,
-  "register",
-  (level) => {
-    registerLevel = level;
-    pitches = visiblePitches(allPitches, currentRegister());
-  },
-);
-let densityLevel = setupLevel(
-  document.querySelector<HTMLInputElement>("#density")!,
-  document.querySelector<HTMLOutputElement>("#density-value")!,
-  "density",
-  (level) => (densityLevel = level),
-);
-let pitches = visiblePitches(allPitches, registerOffset(registerLevel));
-
-function currentRegister(): number {
-  return registerOffset(registerLevel) + (drift ?? NEUTRAL_DRIFT).register;
-}
+});
+const { transport } = page;
 
 // --- 音 ---
 
@@ -101,53 +67,13 @@ const bell = new Tone.PolySynth(Tone.FMSynth, {
 }).connect(delay);
 bell.volume.value = -18;
 
-const transport = Tone.getTransport();
 transport.bpm.value = BPM;
-
-// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる。
-// 変化: 天気で決まった値を中心に、音域・密度・ベルの明るさ・リバーブが経過時間でゆっくり揺れ、20 分ごとに 5 度上へ転調する
-let weather: Mood | null = null;
-let drift: Drift | null = null;
-
-function applyParams(ramp: number) {
-  const m = weather ?? NEUTRAL_MOOD;
-  const d = drift ?? NEUTRAL_DRIFT;
-  transport.bpm.rampTo(BPM * m.speed, ramp);
-  reverb.wet.rampTo(Math.min(Math.max(0.2 + 0.5 * m.wetness + 0.15 * d.reverb, 0), 1), ramp);
-  bell.set({ modulationIndex: 8 * 2 ** d.brightness });
-  pitches = visiblePitches(allPitches, currentRegister());
-}
-
-setupWeather(
-  document.querySelector<HTMLInputElement>("#weather")!,
-  document.querySelector<HTMLSelectElement>("#place")!,
-  document.querySelector<HTMLElement>("#weather-status")!,
-  (next) => {
-    weather = next;
-    applyParams(4);
-    if (next) scalePicker.setScale(next.scaleId);
-  },
-);
-
-setupDrift(
-  document.querySelector<HTMLInputElement>("#drift")!,
-  document.querySelector<HTMLSelectElement>("#drift-speed")!,
-  document.querySelector<HTMLElement>("#drift-status")!,
-  {
-    apply: (next) => {
-      drift = next;
-      applyParams(1);
-    },
-    modulate: () => scalePicker.transposeRoot(7),
-    root: scalePicker.root,
-  },
-);
 
 // 16 分音符ごとの発音数を数え、同時に鳴りすぎないようにする
 const notesByStep = new Map<number, Set<number>>();
 
 function play(synth: Tone.PolySynth<any>, pitchIndex: number, flash: Omit<Flash, "life">) {
-  const freq = pitchAt(pitches, pitchIndex).freq;
+  const freq = pitchAt(page.pitches(), pitchIndex).freq;
   const time = transport.nextSubdivision("16n");
   const step = Math.round(time * 1000);
   const notes = notesByStep.get(step) ?? new Set<number>();
@@ -165,32 +91,26 @@ function play(synth: Tone.PolySynth<any>, pitchIndex: number, flash: Omit<Flash,
 }
 
 function indexAt(y: number): number {
-  return pitchIndexAt(y, height, pitches.length);
-}
-
-let started = false;
-
-async function ensureStarted() {
-  if (started) return;
-  started = true;
-  await Tone.start();
-  transport.start();
-  hintEl.classList.add("hidden");
+  return pitchIndexAt(y, height, page.pitches().length);
 }
 
 // --- 波紋 ---
 
 let width = 0;
 let height = 0;
+const g = setupCanvas(canvas, (w, h) => {
+  width = w;
+  height = h;
+});
 let nextId = 0;
 let ripples: Ripple[] = [];
 let flashes: Flash[] = [];
 
 function spawn(x: number, y: number) {
   const maxR = Math.max(Math.hypot(x, y), Math.hypot(width - x, y), Math.hypot(x, height - y), Math.hypot(width - x, height - y));
-  const m = weather ?? NEUTRAL_MOOD;
+  const weather = page.weather();
   const variance = weather ? 0.3 * weather.spread : 0;
-  const speed = SPEED * m.speed * (1 + (Math.random() * 2 - 1) * variance);
+  const speed = SPEED * page.mood().speed * (1 + (Math.random() * 2 - 1) * variance);
   ripples.push({ id: nextId++, x, y, r: 0, speed, maxR, hue: 180 + Math.random() * 120, edgesHit: new Set(), touched: new Set() });
   if (ripples.length > MAX_RIPPLES) ripples.shift();
 }
@@ -239,7 +159,7 @@ function draw() {
   // 少しだけ前のフレームを残して残像にする
   g.fillStyle = "rgba(27, 29, 35, 0.35)";
   g.fillRect(0, 0, width, height);
-  drawPitchGuides(g, width, height, pitches);
+  drawPitchGuides(g, width, height, page.pitches());
 
   for (const rp of ripples) {
     const alpha = 1 - rp.r / rp.maxR;
@@ -265,15 +185,6 @@ function draw() {
 
 // --- 画面とループ ---
 
-function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  width = window.innerWidth;
-  height = window.innerHeight;
-  canvas.width = width * dpr;
-  canvas.height = height * dpr;
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-
 let last = performance.now();
 let untilAuto = AUTO_INTERVAL;
 
@@ -281,13 +192,11 @@ function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
-  if (started && autoEl.checked) {
+  if (page.started() && autoEl.checked) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       spawn(Math.random() * width, Math.random() * height);
-      const density =
-        (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel);
-      untilAuto = (AUTO_INTERVAL / density) * (0.5 + Math.random());
+      untilAuto = (AUTO_INTERVAL / page.autoDensity()) * (0.5 + Math.random());
     }
   }
 
@@ -297,7 +206,7 @@ function frame(now: number) {
 }
 
 canvas.addEventListener("pointerdown", async (e) => {
-  await ensureStarted();
+  await page.ensureStarted();
   spawn(e.clientX, e.clientY);
 });
 
@@ -306,6 +215,4 @@ clearEl.addEventListener("click", () => {
   flashes = [];
 });
 
-window.addEventListener("resize", resize);
-resize();
 requestAnimationFrame(frame);

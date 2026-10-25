@@ -1,4 +1,6 @@
+import { clamp01 } from "./math";
 import { syncNavQuery } from "./nav";
+import { fillGroupedSelect } from "./select";
 import { getLang, type L, onLangChange, t } from "./i18n";
 
 // Open-Meteo（API キー不要）から現在地の天気を取り、音のパラメータに変換する。
@@ -118,7 +120,6 @@ function skyOf(code: number): Sky {
   return "thunder";
 }
 
-const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
 
 function moodOf(c: Current): Mood {
   const sky = SKY[skyOf(c.weather_code)];
@@ -171,17 +172,13 @@ export function setupWeather(
   statusEl: HTMLElement,
   onMood: (mood: Mood | null) => void,
 ) {
-  placeEl.append(new Option("", HERE));
-  const optgroups = new Map<string, HTMLOptGroupElement>();
-  for (const [id, city] of Object.entries(CITIES)) {
-    let optgroup = optgroups.get(city.group);
-    if (!optgroup) {
-      optgroup = document.createElement("optgroup");
-      optgroups.set(city.group, optgroup);
-      placeEl.append(optgroup);
-    }
-    optgroup.append(new Option("", id));
-  }
+  const hereOption = new Option(t(HERE_NAME), HERE);
+  placeEl.append(hereOption);
+  fillGroupedSelect(
+    placeEl,
+    Object.entries(CITIES).map(([id, city]) => ({ value: id, group: city.group, name: city.name })),
+    GROUP_NAMES,
+  );
   const placeParam = new URLSearchParams(location.search).get("place");
   placeEl.value = placeParam && placeParam in CITIES ? placeParam : HERE;
 
@@ -201,14 +198,8 @@ export function setupWeather(
     renderStatus();
   };
 
-  const renderNames = () => {
-    placeEl.options[0].text = t(HERE_NAME);
-    for (const [group, optgroup] of optgroups) optgroup.label = t(GROUP_NAMES[group]);
-    for (const option of placeEl.options) if (option.value in CITIES) option.text = t(CITIES[option.value].name);
-  };
-  renderNames();
   onLangChange(() => {
-    renderNames();
+    hereOption.text = t(HERE_NAME);
     renderStatus();
   });
 

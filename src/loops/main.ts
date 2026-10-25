@@ -1,13 +1,9 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
-import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitches } from "../scales";
-import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
-import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
-import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
-import { setupHelp } from "../help";
-import { setupChrome } from "../chrome";
-import { protectOutput } from "../audio";
-import { getLang, setupI18n, tk } from "../i18n";
+import { drawPitchGuides, pitchAt, pitchIndexAt } from "../scales";
+import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
+import { densityLevelFactor } from "../levels";
+import { getLang, tk } from "../i18n";
 
 // 長さが大きく違うテープループを重ねる（イーノ『Music for Airports』の手法）。
 // クリックで置くループには長く柔らかい音が 1 つだけ入り、録音したループにはフレーズが入る。
@@ -44,51 +40,23 @@ const AUTO_INTERVAL = 20;
 const HIT_RADIUS = 16; // ループの中心からこの距離以内のクリックで外す
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
-const g = canvas.getContext("2d")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const recordEl = document.querySelector<HTMLButtonElement>("#record")!;
 const recordStatusEl = document.querySelector<HTMLElement>("#record-status")!;
-const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
-protectOutput();
-setupI18n();
-setupChrome();
-setupHelp();
-
-// ループは縦位置だけを持ち、鳴るたびに今のスケールで音を決める
-const scalePicker = setupScalePicker(
-  document.querySelector<HTMLSelectElement>("#scale")!,
-  document.querySelector<HTMLSelectElement>("#root")!,
-  { scale: "major-pentatonic", root: "F" },
-  (next) => {
-    allPitches = next;
-    pitches = visiblePitches(allPitches, currentRegister());
+// ループは縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
+// 天気: 気温でループの長さ、風で長さの幅、雨で自動の頻度、雲でリバーブが変わる。長さはこれから置くループから変わる。
+// 変化: 天気で決まった値を中心に、音域・密度・フィルターの明るさ・リバーブが経過時間でゆっくり揺れ、
+// 20 分ごとに 5 度上へ転調する。音域と転調は置いてあるループにも効く
+const page = setupGenerativePage({
+  defaults: { scale: "major-pentatonic", root: "F" },
+  applyParams: (params) => {
+    reverb.wet.rampTo(reverbWet(0.35, params), params.ramp);
+    filter.frequency.rampTo(1800 * 2 ** params.drift.brightness, params.ramp);
   },
-);
-let allPitches = scalePicker.pitches;
-
-// 音域と密度の 5 段階。音域は変化の揺れの中心になり、密度は天気・変化の倍率に掛け合わせる
-let registerLevel = setupLevel(
-  document.querySelector<HTMLInputElement>("#register")!,
-  document.querySelector<HTMLOutputElement>("#register-value")!,
-  "register",
-  (level) => {
-    registerLevel = level;
-    pitches = visiblePitches(allPitches, currentRegister());
-  },
-);
-let densityLevel = setupLevel(
-  document.querySelector<HTMLInputElement>("#density")!,
-  document.querySelector<HTMLOutputElement>("#density-value")!,
-  "density",
-  (level) => (densityLevel = level),
-);
-let pitches = visiblePitches(allPitches, registerOffset(registerLevel));
-
-function currentRegister(): number {
-  return registerOffset(registerLevel) + (drift ?? NEUTRAL_DRIFT).register;
-}
+});
+const { transport } = page;
 
 // --- 音 ---
 
@@ -111,76 +79,31 @@ const phraseSynth = new Tone.PolySynth(Tone.Synth, {
 phraseSynth.maxPolyphony = 48;
 phraseSynth.volume.value = -14;
 
-// 天気: 気温でループの長さ、風で長さの幅、雨で自動の頻度、雲でリバーブが変わる。長さはこれから置くループから変わる。
-// 変化: 天気で決まった値を中心に、音域・密度・フィルターの明るさ・リバーブが経過時間でゆっくり揺れ、
-// 20 分ごとに 5 度上へ転調する。音域と転調は置いてあるループにも効く
-let weather: Mood | null = null;
-let drift: Drift | null = null;
-
-function applyParams(ramp: number) {
-  const m = weather ?? NEUTRAL_MOOD;
-  const d = drift ?? NEUTRAL_DRIFT;
-  reverb.wet.rampTo(Math.min(Math.max(0.35 + 0.5 * m.wetness + 0.15 * d.reverb, 0), 1), ramp);
-  filter.frequency.rampTo(1800 * 2 ** d.brightness, ramp);
-  pitches = visiblePitches(allPitches, currentRegister());
-}
-
-setupWeather(
-  document.querySelector<HTMLInputElement>("#weather")!,
-  document.querySelector<HTMLSelectElement>("#place")!,
-  document.querySelector<HTMLElement>("#weather-status")!,
-  (next) => {
-    weather = next;
-    applyParams(4);
-    if (next) scalePicker.setScale(next.scaleId);
-  },
-);
-
-setupDrift(
-  document.querySelector<HTMLInputElement>("#drift")!,
-  document.querySelector<HTMLSelectElement>("#drift-speed")!,
-  document.querySelector<HTMLElement>("#drift-status")!,
-  {
-    apply: (next) => {
-      drift = next;
-      applyParams(1);
-    },
-    modulate: () => scalePicker.transposeRoot(7),
-    root: scalePicker.root,
-  },
-);
-
-const transport = Tone.getTransport();
-let started = false;
-
-async function ensureStarted() {
-  if (started) return;
-  started = true;
-  await Tone.start();
-  transport.start();
-  hintEl.classList.add("hidden");
-}
-
 // --- ループ ---
 
 let width = 0;
 let height = 0;
+const g = setupCanvas(canvas, (w, h) => {
+  width = w;
+  height = h;
+});
 let loops: TapeLoop[] = [];
 let glows: Glow[] = [];
 
 function pitchAtY(y: number) {
+  const pitches = page.pitches();
   return pitchAt(pitches, pitchIndexAt(y, height, pitches.length));
 }
 
 function periodAt(x: number): number {
-  const m = weather ?? NEUTRAL_MOOD;
+  const m = page.mood();
   const halfRange = HALF_RANGE * (0.5 + 1.5 * m.spread);
   return Math.max(MIN_PERIOD, (CENTER_PERIOD + (x / width * 2 - 1) * halfRange) / m.speed);
 }
 
 // 密度が高いほど、自動で置くループの上限を増やす（4〜10 本）
 function autoMaxLoops(): number {
-  return Math.min(MAX_LOOPS, Math.round(AUTO_MAX_LOOPS * Math.sqrt(densityLevelFactor(densityLevel))));
+  return Math.min(MAX_LOOPS, Math.round(AUTO_MAX_LOOPS * Math.sqrt(densityLevelFactor(page.densityLevel()))));
 }
 
 function ringRadius(l: TapeLoop): number {
@@ -256,7 +179,7 @@ function stopRecording() {
 }
 
 recordEl.addEventListener("click", async () => {
-  await ensureStarted();
+  await page.ensureStarted();
   idle = 0;
   if (recording) stopRecording();
   else startRecording();
@@ -271,7 +194,7 @@ function angleAt(l: TapeLoop, offset: number): number {
 function draw() {
   g.fillStyle = "rgba(27, 29, 35, 0.3)";
   g.fillRect(0, 0, width, height);
-  drawPitchGuides(g, width, height, pitches);
+  drawPitchGuides(g, width, height, page.pitches());
 
   for (const l of loops) {
     const r = ringRadius(l);
@@ -356,15 +279,6 @@ function draw() {
 
 // --- 画面とループ ---
 
-function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  width = window.innerWidth;
-  height = window.innerHeight;
-  canvas.width = width * dpr;
-  canvas.height = height * dpr;
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-
 let last = performance.now();
 let idle = 0;
 let untilAuto = 0;
@@ -385,13 +299,11 @@ function frame(now: number) {
   }
 
   idle += dt;
-  if (started && autoEl.checked && idle > IDLE_BEFORE_AUTO && loops.length < autoMaxLoops()) {
+  if (page.started() && autoEl.checked && idle > IDLE_BEFORE_AUTO && loops.length < autoMaxLoops()) {
     untilAuto -= dt;
     if (untilAuto <= 0) {
       place(Math.random() * width, height * (0.15 + Math.random() * 0.7));
-      const density =
-        (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel);
-      untilAuto = (AUTO_INTERVAL / density) * (0.5 + Math.random());
+      untilAuto = (AUTO_INTERVAL / page.autoDensity()) * (0.5 + Math.random());
     }
   }
 
@@ -403,7 +315,7 @@ function frame(now: number) {
 }
 
 canvas.addEventListener("pointerdown", async (e) => {
-  await ensureStarted();
+  await page.ensureStarted();
   idle = 0;
   if (recording) {
     recordNote(e.clientX, e.clientY);
@@ -419,6 +331,4 @@ clearEl.addEventListener("click", () => {
   glows = [];
 });
 
-window.addEventListener("resize", resize);
-resize();
 requestAnimationFrame(frame);
