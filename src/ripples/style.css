@@ -104,6 +104,11 @@ canvas {
   cursor: pointer;
 }
 
+.toolbar button.recording {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+}
+
 .toolbar button:disabled,
 .toolbar select:disabled {
   opacity: 0.4;

@@ -6,23 +6,31 @@ import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 
 // 長さが大きく違うテープループを重ねる（イーノ『Music for Airports』の手法）。
-// 1 本のループには長く柔らかい音が 1 つだけ入っていて、ループどうしの長さが割り切れないので
-// 重なり方がほとんど二度と同じにならない。
+// クリックで置くループには長く柔らかい音が 1 つだけ入り、録音したループにはフレーズが入る。
+// ループどうしの長さが割り切れないので、重なり方がほとんど二度と同じにならない。
 
+type LoopNote = { offset: number; y: number }; // offset はループの頭からの秒数
 type TapeLoop = {
+  kind: "note" | "phrase";
   x: number;
   y: number;
   period: number; // 秒
-  t0: number; // 最初に鳴った AudioContext 時刻
+  notes: LoopNote[];
   hue: number;
   loop: Tone.Loop;
 };
-type Glow = { loop: TapeLoop; life: number };
+type Glow = { loop: TapeLoop; offset: number; life: number };
+// points は録音中の表示用。クリックした場所を順に持つ
+type Recording = { start: number | null; x: number; y: number; notes: LoopNote[]; points: { x: number; y: number }[] };
 
 const CENTER_PERIOD = 25; // 画面中央のループの長さ (秒)
 const HALF_RANGE = 10; // 標準では左端 15 秒〜右端 35 秒
 const MIN_PERIOD = 8;
-const NOTE_LENGTH = 4; // 1 回に鳴らす長さ (秒)
+const NOTE_LENGTH = 4; // 1 音のループで 1 回に鳴らす長さ (秒)
+const PHRASE_NOTE_LENGTH = 0.8; // フレーズの 1 音の長さ (秒)
+const MIN_PHRASE_PERIOD = 4; // 録音が短くても、ループはこれより短くしない
+const MAX_RECORD_SECONDS = 40;
+const MAX_PHRASE_NOTES = 16;
 const MAX_LOOPS = 10;
 const AUTO_MAX_LOOPS = 6; // 密度 3 のとき、自動で置くのはここまで
 const IDLE_BEFORE_AUTO = 10;
@@ -33,6 +41,8 @@ const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const g = canvas.getContext("2d")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
+const recordEl = document.querySelector<HTMLButtonElement>("#record")!;
+const recordStatusEl = document.querySelector<HTMLElement>("#record-status")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
 // ループは縦位置だけを持ち、鳴るたびに今のスケールで音を決める
@@ -71,15 +81,24 @@ function currentRegister(): number {
 
 // --- 音 ---
 
-// ゆっくり立ち上がって長く消える、柔らかいパッド
 const reverb = new Tone.Reverb({ decay: 10, wet: 0.6 }).toDestination();
 const filter = new Tone.Filter({ type: "lowpass", frequency: 1800, Q: 0.5 }).connect(reverb);
+
+// 1 音のループ: ゆっくり立ち上がって長く消える、柔らかいパッド
 const synth = new Tone.PolySynth(Tone.Synth, {
   oscillator: { type: "fattriangle", count: 3, spread: 18 },
   envelope: { attack: 2.5, decay: 1, sustain: 0.6, release: 6 },
 }).connect(filter);
 synth.maxPolyphony = 32;
 synth.volume.value = -20;
+
+// フレーズ: 弾いたタイミングがわかるよう、立ち上がりの速い柔らかい音
+const phraseSynth = new Tone.PolySynth(Tone.Synth, {
+  oscillator: { type: "fatsine", count: 2, spread: 10 },
+  envelope: { attack: 0.02, decay: 1.2, sustain: 0.2, release: 3 },
+}).connect(filter);
+phraseSynth.maxPolyphony = 48;
+phraseSynth.volume.value = -14;
 
 // 天気: 気温でループの長さ、風で長さの幅、雨で自動の頻度、雲でリバーブが変わる。長さはこれから置くループから変わる。
 // 変化: 天気で決まった値を中心に、音域・密度・フィルターの明るさ・リバーブが経過時間でゆっくり揺れ、
@@ -138,8 +157,8 @@ let height = 0;
 let loops: TapeLoop[] = [];
 let glows: Glow[] = [];
 
-function pitchOf(l: TapeLoop) {
-  return pitchAt(pitches, pitchIndexAt(l.y, height, pitches.length));
+function pitchAtY(y: number) {
+  return pitchAt(pitches, pitchIndexAt(y, height, pitches.length));
 }
 
 function periodAt(x: number): number {
@@ -162,22 +181,78 @@ function removeLoop(l: TapeLoop) {
   loops = loops.filter((other) => other !== l);
 }
 
-function place(x: number, y: number) {
-  const l: TapeLoop = {
-    x,
-    y,
-    period: periodAt(x),
-    t0: Tone.now(),
-    hue: 30 + (x / width) * 60,
-    loop: undefined!,
-  };
+// delay 秒後に最初の頭が来るようにループを始める
+function addLoop(kind: TapeLoop["kind"], x: number, y: number, period: number, notes: LoopNote[], delay = 0) {
+  // 1 音のループは暖色、フレーズは紫系にして見分けやすくする
+  const hue = kind === "note" ? 30 + (x / width) * 60 : 300 + (x / width) * 50;
+  const l: TapeLoop = { kind, x, y, period, notes, hue, loop: undefined! };
   l.loop = new Tone.Loop((time) => {
-    synth.triggerAttackRelease(pitchOf(l).freq, NOTE_LENGTH, time, 0.6 + Math.random() * 0.3);
-    Tone.getDraw().schedule(() => glows.push({ loop: l, life: 1 }), time);
-  }, l.period).start(transport.seconds);
+    for (const n of l.notes) {
+      const at = time + n.offset;
+      const freq = pitchAtY(n.y).freq;
+      if (kind === "note") synth.triggerAttackRelease(freq, NOTE_LENGTH, at, 0.6 + Math.random() * 0.3);
+      else phraseSynth.triggerAttackRelease(freq, PHRASE_NOTE_LENGTH, at, 0.6 + Math.random() * 0.2);
+      Tone.getDraw().schedule(() => glows.push({ loop: l, offset: n.offset, life: 1 }), at);
+    }
+  }, period).start(transport.seconds + delay);
 
   loops.push(l);
   if (loops.length > MAX_LOOPS) removeLoop(loops[0]);
+}
+
+function place(x: number, y: number) {
+  addLoop("note", x, y, periodAt(x), [{ offset: 0, y }]);
+}
+
+// --- 録音 ---
+
+let recording: Recording | null = null;
+
+function startRecording() {
+  recording = { start: null, x: 0, y: 0, notes: [], points: [] };
+  recordEl.textContent = "■ 停止";
+  recordEl.classList.add("recording");
+}
+
+function recordNote(x: number, y: number) {
+  const rec = recording!;
+  const now = Tone.now();
+  if (rec.start === null) {
+    rec.start = now;
+    rec.x = x;
+    rec.y = y;
+  }
+  rec.notes.push({ offset: now - rec.start, y });
+  rec.points.push({ x, y });
+  phraseSynth.triggerAttackRelease(pitchAtY(y).freq, PHRASE_NOTE_LENGTH, now, 0.8);
+  if (rec.notes.length >= MAX_PHRASE_NOTES) stopRecording();
+}
+
+// 最初の音から停止までの長さでループにする。停止した瞬間に頭へ戻るので、弾いた流れのまま続く
+function stopRecording() {
+  const rec = recording!;
+  recording = null;
+  recordEl.textContent = "● 録音";
+  recordEl.classList.remove("recording");
+  recordStatusEl.textContent = "";
+  if (rec.start === null) return;
+
+  const elapsed = Tone.now() - rec.start;
+  const period = Math.max(MIN_PHRASE_PERIOD, elapsed);
+  addLoop("phrase", rec.x, rec.y, period, rec.notes, period - elapsed);
+}
+
+recordEl.addEventListener("click", async () => {
+  await ensureStarted();
+  idle = 0;
+  if (recording) stopRecording();
+  else startRecording();
+});
+
+// --- 描画 ---
+
+function angleAt(l: TapeLoop, offset: number): number {
+  return -Math.PI / 2 + (offset / l.period) * Math.PI * 2;
 }
 
 function draw() {
@@ -185,11 +260,9 @@ function draw() {
   g.fillRect(0, 0, width, height);
   drawPitchGuides(g, width, height, pitches);
 
-  const now = Tone.immediate();
   for (const l of loops) {
     const r = ringRadius(l);
-    const phase = (((now - l.t0) / l.period) % 1 + 1) % 1;
-    const angle = -Math.PI / 2 + phase * Math.PI * 2;
+    const angle = -Math.PI / 2 + l.loop.progress * Math.PI * 2;
 
     g.strokeStyle = `hsla(${l.hue}, 50%, 65%, 0.18)`;
     g.lineWidth = 1;
@@ -197,7 +270,18 @@ function draw() {
     g.arc(l.x, l.y, r, 0, Math.PI * 2);
     g.stroke();
 
-    // テープの針。真上に来たときに鳴る
+    // フレーズの各音が鳴る位置
+    if (l.kind === "phrase") {
+      g.fillStyle = `hsla(${l.hue}, 50%, 70%, 0.45)`;
+      for (const n of l.notes) {
+        const a = angleAt(l, n.offset);
+        g.beginPath();
+        g.arc(l.x + Math.cos(a) * r, l.y + Math.sin(a) * r, 2, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+
+    // テープの針。音の位置に来たときに鳴る
     g.fillStyle = `hsla(${l.hue}, 80%, 75%, 0.9)`;
     g.beginPath();
     g.arc(l.x + Math.cos(angle) * r, l.y + Math.sin(angle) * r, 3, 0, Math.PI * 2);
@@ -208,20 +292,51 @@ function draw() {
     g.arc(l.x, l.y, 3, 0, Math.PI * 2);
     g.fill();
 
+    const label = l.kind === "note" ? pitchAtY(l.y).label : `${l.notes.length} 音`;
     g.fillStyle = `hsla(${l.hue}, 20%, 70%, 0.6)`;
     g.font = "11px system-ui, sans-serif";
     g.textAlign = "center";
-    g.fillText(`${pitchOf(l).label}  ${l.period.toFixed(1)}s`, l.x, l.y + 18);
+    g.fillText(`${label}  ${l.period.toFixed(1)}s`, l.x, l.y + 18);
   }
 
-  // 鳴っている間、リングがふわっと光る
+  // 鳴っている間、1 音のループはリング全体が、フレーズは鳴った音の位置がふわっと光る
   for (const gl of glows) {
-    if (!loops.includes(gl.loop)) continue;
-    g.strokeStyle = `hsla(${gl.loop.hue}, 80%, 70%, ${gl.life * 0.6})`;
-    g.lineWidth = 2 + gl.life * 4;
+    const l = gl.loop;
+    if (!loops.includes(l)) continue;
+    const r = ringRadius(l);
+    if (l.kind === "note") {
+      g.strokeStyle = `hsla(${l.hue}, 80%, 70%, ${gl.life * 0.6})`;
+      g.lineWidth = 2 + gl.life * 4;
+      g.beginPath();
+      g.arc(l.x, l.y, r, 0, Math.PI * 2);
+      g.stroke();
+    } else {
+      const a = angleAt(l, gl.offset);
+      g.fillStyle = `hsla(${l.hue}, 80%, 75%, ${gl.life * 0.8})`;
+      g.beginPath();
+      g.arc(l.x + Math.cos(a) * r, l.y + Math.sin(a) * r, 3 + (1 - gl.life) * 14, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+
+  // 録音中のフレーズ。クリックした場所を弾いた順に線でつなぐ。停止すると recording が消えるので表示も消える
+  if (recording && recording.points.length > 0) {
+    const points = recording.points;
+    g.strokeStyle = "rgba(255, 107, 107, 0.35)";
+    g.lineWidth = 1;
     g.beginPath();
-    g.arc(gl.loop.x, gl.loop.y, ringRadius(gl.loop), 0, Math.PI * 2);
+    points.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
     g.stroke();
+
+    g.fillStyle = "rgba(255, 107, 107, 0.85)";
+    g.font = "10px system-ui, sans-serif";
+    g.textAlign = "center";
+    points.forEach((p, i) => {
+      g.beginPath();
+      g.arc(p.x, p.y, i === 0 ? 5 : 4, 0, Math.PI * 2);
+      g.fill();
+      g.fillText(String(i + 1), p.x, p.y - 9);
+    });
   }
 }
 
@@ -244,6 +359,13 @@ function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
+  if (recording) {
+    idle = 0;
+    const elapsed = recording.start === null ? 0 : Tone.now() - recording.start;
+    recordStatusEl.textContent = `録音中 ${recording.notes.length} 音 ${elapsed.toFixed(1)}s`;
+    if (elapsed >= MAX_RECORD_SECONDS) stopRecording();
+  }
+
   idle += dt;
   if (started && autoEl.checked && idle > IDLE_BEFORE_AUTO && loops.length < autoMaxLoops()) {
     untilAuto -= dt;
@@ -255,7 +377,7 @@ function frame(now: number) {
     }
   }
 
-  for (const gl of glows) gl.life -= dt / NOTE_LENGTH;
+  for (const gl of glows) gl.life -= dt / (gl.loop.kind === "note" ? NOTE_LENGTH : 1.2);
   glows = glows.filter((gl) => gl.life > 0);
 
   draw();
@@ -265,6 +387,10 @@ function frame(now: number) {
 canvas.addEventListener("pointerdown", async (e) => {
   await ensureStarted();
   idle = 0;
+  if (recording) {
+    recordNote(e.clientX, e.clientY);
+    return;
+  }
   const hit = loops.find((l) => Math.hypot(l.x - e.clientX, l.y - e.clientY) <= HIT_RADIUS);
   if (hit) removeLoop(hit);
   else place(e.clientX, e.clientY);

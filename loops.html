@@ -27,13 +27,16 @@
         <option value="60">×60</option>
       </select>
       <span id="drift-status" class="status"></span>
+      <button id="record" type="button">● 録音</button>
+      <span id="record-status" class="status"></span>
       <label><input id="auto" type="checkbox" checked /> 自動</label>
       <button id="clear" type="button">クリア</button>
     </header>
     <canvas id="canvas"></canvas>
     <p id="hint" class="hint">
       クリックでテープループを置く。縦の位置で音の高さ、横の位置でループの長さ（15〜35 秒）が決まります<br />
-      長さの違うループが重なり、同じ響きはほとんど二度と来ません。ループの中心をクリックすると外せます
+      長さの違うループが重なり、同じ響きはほとんど二度と来ません。ループの中心をクリックすると外せます<br />
+      「録音」を押してクリックで演奏し、「停止」を押すと、そのフレーズが録音した長さのループになります
     </p>
     <script type="module" src="/src/loops/main.ts"></script>
   </body>
