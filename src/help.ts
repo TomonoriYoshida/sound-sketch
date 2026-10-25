@@ -51,7 +51,8 @@ export function setupHelp() {
   toggle.type = "button";
   toggle.className = "help-toggle";
   toggle.textContent = "? 説明";
-  document.querySelector(".nav")!.append(toggle);
+  // キャンバスのページではバーの右側、Keyboard ではナビの並びに置く
+  (document.querySelector(".bar-actions") ?? document.querySelector(".nav")!).append(toggle);
 
   const isOn = () => document.body.classList.contains("help-on");
   let hide = () => {};

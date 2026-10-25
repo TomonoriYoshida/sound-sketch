@@ -6,30 +6,58 @@
     <title>Ripples - sound-sketch</title>
   </head>
   <body>
-    <header class="toolbar">
+    <header class="bar">
       <nav class="nav">
         <a href="./">Keyboard</a>
         <a href="./ripples.html" aria-current="page">Ripples</a>
         <a href="./phase.html">Phase</a>
         <a href="./loops.html">Loops</a>
       </nav>
-      <label>スケール <select id="scale"></select></label>
-      <label>主音 <select id="root"></select></label>
-      <label>音域 <input id="register" type="range" min="1" max="5" step="1" /> <output id="register-value"></output></label>
-      <label>密度 <input id="density" type="range" min="1" max="5" step="1" /> <output id="density-value"></output></label>
-      <label><input id="weather" type="checkbox" /> 天気</label>
-      <select id="place" aria-label="場所"></select>
-      <span id="weather-status" class="status"></span>
-      <label><input id="drift" type="checkbox" /> 変化</label>
-      <select id="drift-speed" aria-label="変化の速さ">
-        <option value="1">×1</option>
-        <option value="10">×10</option>
-        <option value="60">×60</option>
-      </select>
-      <span id="drift-status" class="status"></span>
-      <label><input id="auto" type="checkbox" checked /> 自動</label>
-      <button id="clear" type="button">クリア</button>
+      <div class="bar-actions">
+        <button id="clear" type="button">クリア</button>
+        <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">⚙ 設定</button>
+      </div>
     </header>
+    <aside id="settings" class="settings" aria-label="設定" hidden>
+      <section>
+        <h2>音</h2>
+        <label>スケール <select id="scale"></select></label>
+        <label>主音 <select id="root"></select></label>
+        <label>
+          音域
+          <span class="range"><input id="register" type="range" min="1" max="5" step="1" /><output id="register-value"></output></span>
+        </label>
+        <label>
+          密度
+          <span class="range"><input id="density" type="range" min="1" max="5" step="1" /><output id="density-value"></output></span>
+        </label>
+      </section>
+      <section>
+        <h2>天気</h2>
+        <label>天気を使う <input id="weather" type="checkbox" /></label>
+        <label>場所 <select id="place"></select></label>
+      </section>
+      <section>
+        <h2>変化</h2>
+        <label>ゆっくり変化させる <input id="drift" type="checkbox" /></label>
+        <label>
+          速さ
+          <select id="drift-speed">
+            <option value="1">×1</option>
+            <option value="10">×10</option>
+            <option value="60">×60</option>
+          </select>
+        </label>
+      </section>
+      <section>
+        <h2>自動</h2>
+        <label>自動で置く <input id="auto" type="checkbox" checked /></label>
+      </section>
+    </aside>
+    <footer class="status-line">
+      <span id="weather-status"></span>
+      <span id="drift-status"></span>
+    </footer>
     <canvas id="canvas"></canvas>
     <p id="hint" class="hint">クリックすると波紋が広がり、ぶつかると音が鳴ります</p>
     <script type="module" src="/src/ripples/main.ts"></script>
