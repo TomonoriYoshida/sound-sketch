@@ -21,7 +21,9 @@ type TapeLoop = {
   period: number; // 秒
   notes: LoopNote[];
   hue: number;
-  loop: Tone.Loop;
+  // 音ごとのループ。頭（offset 0）の音が先頭。音ごとに分けておくと、外したときにまだ鳴っていない音も取り消せ、
+  // 音の高さも鳴る瞬間のスケールで決まる
+  voices: Tone.Loop[];
 };
 type Glow = { loop: TapeLoop; offset: number; life: number };
 // points は録音中の表示用。クリックした場所を順に持つ
@@ -186,7 +188,7 @@ function ringRadius(l: TapeLoop): number {
 }
 
 function removeLoop(l: TapeLoop) {
-  l.loop.dispose();
+  for (const v of l.voices) v.dispose();
   loops = loops.filter((other) => other !== l);
 }
 
@@ -194,16 +196,16 @@ function removeLoop(l: TapeLoop) {
 function addLoop(kind: TapeLoop["kind"], x: number, y: number, period: number, notes: LoopNote[], delay = 0) {
   // 1 音のループは暖色、フレーズは紫系にして見分けやすくする
   const hue = kind === "note" ? 30 + (x / width) * 60 : 300 + (x / width) * 50;
-  const l: TapeLoop = { kind, x, y, period, notes, hue, loop: undefined! };
-  l.loop = new Tone.Loop((time) => {
-    for (const n of l.notes) {
-      const at = time + n.offset;
+  const l: TapeLoop = { kind, x, y, period, notes, hue, voices: [] };
+  const start = transport.seconds + delay;
+  l.voices = notes.map((n) =>
+    new Tone.Loop((time) => {
       const freq = pitchAtY(n.y).freq;
-      if (kind === "note") synth.triggerAttackRelease(freq, NOTE_LENGTH, at, 0.6 + Math.random() * 0.3);
-      else phraseSynth.triggerAttackRelease(freq, PHRASE_NOTE_LENGTH, at, 0.6 + Math.random() * 0.2);
-      Tone.getDraw().schedule(() => glows.push({ loop: l, offset: n.offset, life: 1 }), at);
-    }
-  }, period).start(transport.seconds + delay);
+      if (kind === "note") synth.triggerAttackRelease(freq, NOTE_LENGTH, time, 0.6 + Math.random() * 0.3);
+      else phraseSynth.triggerAttackRelease(freq, PHRASE_NOTE_LENGTH, time, 0.6 + Math.random() * 0.2);
+      Tone.getDraw().schedule(() => glows.push({ loop: l, offset: n.offset, life: 1 }), time);
+    }, period).start(start + n.offset),
+  );
 
   loops.push(l);
   if (loops.length > MAX_LOOPS) removeLoop(loops[0]);
@@ -273,7 +275,7 @@ function draw() {
 
   for (const l of loops) {
     const r = ringRadius(l);
-    const angle = -Math.PI / 2 + l.loop.progress * Math.PI * 2;
+    const angle = -Math.PI / 2 + l.voices[0].progress * Math.PI * 2;
 
     g.strokeStyle = `hsla(${l.hue}, 50%, 65%, 0.18)`;
     g.lineWidth = 1;

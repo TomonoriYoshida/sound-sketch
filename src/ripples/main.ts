@@ -218,12 +218,14 @@ function update(dt: number) {
       const b = ripples[j];
       if (a.touched.has(b.id)) continue;
       const d = Math.hypot(b.x - a.x, b.y - a.y);
-      if (a.r + b.r < d) continue;
+      // 輪どうしが実際に交わったときだけ鳴らす。片方がもう片方の内側にあるときや、中心が同じときは鳴らさない
+      if (d === 0 || a.r + b.r < d || Math.abs(a.r - b.r) > d) continue;
       a.touched.add(b.id);
       b.touched.add(a.id);
-      const t = d === 0 ? 0 : a.r / (a.r + b.r);
-      const x = a.x + (b.x - a.x) * t;
-      const y = a.y + (b.y - a.y) * t;
+      // 接した点は、大きい方の輪の上で、小さい方の中心がある向き（外側で接しても、内側から追いついても同じ式になる）
+      const [big, small] = a.r >= b.r ? [a, b] : [b, a];
+      const x = big.x + ((small.x - big.x) / d) * big.r;
+      const y = big.y + ((small.y - big.y) / d) * big.r;
       play(bell, indexAt(y), { x, y, hue: (a.hue + b.hue) / 2 });
     }
   }

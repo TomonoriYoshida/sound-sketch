@@ -36,10 +36,13 @@ export function setupChrome() {
     if (!hidden) restart();
   };
 
-  // 隠さないとき: パネルが開いている、バーの上にマウスがある、録音中、説明を表示している
+  // 隠さないとき: パネルが開いている、バーの上にマウスがある、キーボードでバーのボタンにフォーカスがある、
+  // 録音中、説明を表示している。マウスで押したあとに残るフォーカスは :focus-visible に当たらないので、
+  // クリアや設定を押したあとはこれまでどおり隠れる
   const busy = () =>
     !panel.hidden ||
     hovering ||
+    bar.querySelector(":focus-visible") !== null ||
     document.querySelector("button.recording") !== null ||
     document.querySelector(".help-popover.open, .help-sheet.open") !== null;
 

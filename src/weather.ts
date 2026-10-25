@@ -212,17 +212,23 @@ export function setupWeather(
     renderStatus();
   });
 
+  // 取りに行くたびに番号を振り、最新の番号の結果だけを使う。場所を素早く切り替えたときに古い結果が後から届いても、
+  // 天気をオフにしたあとに結果や失敗が届いても、無視する
+  let latestRequest = 0;
+
   const refresh = async () => {
+    const request = ++latestRequest;
+    const isCurrent = () => request === latestRequest && toggleEl.checked;
     setStatus({ kind: "text", text: LOADING });
     try {
       const p = placeEl.value === HERE ? await (here ??= locate()) : CITIES[placeEl.value];
       const c = await fetchCurrent(p);
-      if (!toggleEl.checked) return;
+      if (!isCurrent()) return;
       const mood = moodOf(c);
       setStatus({ kind: "weather", place: p, mood, c });
       onMood(mood);
     } catch {
-      setStatus({ kind: "text", text: FAILED });
+      if (isCurrent()) setStatus({ kind: "text", text: FAILED });
     }
   };
 
@@ -241,6 +247,7 @@ export function setupWeather(
       refresh();
       timer = setInterval(refresh, REFRESH_MS);
     } else {
+      latestRequest++;
       setStatus({ kind: "none" });
       onMood(null);
     }
