@@ -1,4 +1,5 @@
 import { syncNavQuery } from "./nav";
+import { getLang, type L, onLangChange, t } from "./i18n";
 
 // Open-Meteo（API キー不要）から現在地の天気を取り、音のパラメータに変換する。
 // 天気 → スケール、気温 → 速さ、降水量 → 密度、風速 → ばらつき、雲量 → リバーブの深さ
@@ -22,47 +23,77 @@ type Current = {
   wind_speed_10m: number;
   cloud_cover: number;
 };
-type Place = { name: string; latitude: number; longitude: number };
+type Place = { name: L; latitude: number; longitude: number };
 type Sky = "clear" | "cloudy" | "drizzle" | "rain" | "snow" | "thunder";
 
-const FALLBACK: Place = { name: "東京（位置情報なし）", latitude: 35.68, longitude: 139.77 };
+const FALLBACK: Place = {
+  name: { ja: "東京（位置情報なし）", en: "Tokyo (no location)" },
+  latitude: 35.68,
+  longitude: 139.77,
+};
 const HERE = "here";
+const HERE_NAME: L = { ja: "現在地", en: "Current location" };
+
+// 地域の見出し。group は日本語のまま識別子として使う
+const GROUP_NAMES: Record<string, L> = {
+  日本: { ja: "日本", en: "Japan" },
+  東アジア: { ja: "東アジア", en: "East Asia" },
+  東南アジア: { ja: "東南アジア", en: "Southeast Asia" },
+  南アジア: { ja: "南アジア", en: "South Asia" },
+  "中東・アフリカ": { ja: "中東・アフリカ", en: "Middle East & Africa" },
+  ヨーロッパ: { ja: "ヨーロッパ", en: "Europe" },
+  北アメリカ: { ja: "北アメリカ", en: "North America" },
+  南アメリカ: { ja: "南アメリカ", en: "South America" },
+  オセアニア: { ja: "オセアニア", en: "Oceania" },
+};
+
+const LOADING: L = { ja: "取得中…", en: "Loading…" };
+const FAILED: L = { ja: "天気を取得できませんでした", en: "Couldn't get the weather" };
+
+function formatStatus(place: Place, mood: Mood, c: Current): string {
+  const name = t(place.name);
+  const temp = Math.round(c.temperature_2m);
+  const wind = Math.round(c.wind_speed_10m);
+  return getLang() === "ja"
+    ? `${name} ${mood.icon} ${temp}℃ 降水${c.precipitation}mm 風${wind}km/h 雲${c.cloud_cover}%`
+    : `${name} ${mood.icon} ${temp}°C rain ${c.precipitation}mm wind ${wind}km/h cloud ${c.cloud_cover}%`;
+}
 
 // 場所のプルダウンの選択肢。地域ごとに見出しを付ける。HERE はブラウザの位置情報を使う
 const CITIES: Record<string, Place & { group: string }> = {
-  sapporo: { group: "日本", name: "札幌", latitude: 43.06, longitude: 141.35 },
-  tokyo: { group: "日本", name: "東京", latitude: 35.68, longitude: 139.77 },
-  naha: { group: "日本", name: "那覇", latitude: 26.21, longitude: 127.68 },
-  seoul: { group: "東アジア", name: "ソウル", latitude: 37.57, longitude: 126.98 },
-  beijing: { group: "東アジア", name: "北京", latitude: 39.9, longitude: 116.41 },
-  shanghai: { group: "東アジア", name: "上海", latitude: 31.23, longitude: 121.47 },
-  taipei: { group: "東アジア", name: "台北", latitude: 25.03, longitude: 121.57 },
-  hongkong: { group: "東アジア", name: "香港", latitude: 22.32, longitude: 114.17 },
-  bangkok: { group: "東南アジア", name: "バンコク", latitude: 13.76, longitude: 100.5 },
-  singapore: { group: "東南アジア", name: "シンガポール", latitude: 1.35, longitude: 103.82 },
-  jakarta: { group: "東南アジア", name: "ジャカルタ", latitude: -6.21, longitude: 106.85 },
-  denpasar: { group: "東南アジア", name: "デンパサール（バリ島）", latitude: -8.65, longitude: 115.22 },
-  mumbai: { group: "南アジア", name: "ムンバイ", latitude: 19.08, longitude: 72.88 },
-  delhi: { group: "南アジア", name: "デリー", latitude: 28.61, longitude: 77.21 },
-  istanbul: { group: "中東・アフリカ", name: "イスタンブール", latitude: 41.01, longitude: 28.98 },
-  dubai: { group: "中東・アフリカ", name: "ドバイ", latitude: 25.2, longitude: 55.27 },
-  cairo: { group: "中東・アフリカ", name: "カイロ", latitude: 30.04, longitude: 31.24 },
-  nairobi: { group: "中東・アフリカ", name: "ナイロビ", latitude: -1.29, longitude: 36.82 },
-  london: { group: "ヨーロッパ", name: "ロンドン", latitude: 51.51, longitude: -0.13 },
-  paris: { group: "ヨーロッパ", name: "パリ", latitude: 48.86, longitude: 2.35 },
-  berlin: { group: "ヨーロッパ", name: "ベルリン", latitude: 52.52, longitude: 13.4 },
-  rome: { group: "ヨーロッパ", name: "ローマ", latitude: 41.9, longitude: 12.5 },
-  madrid: { group: "ヨーロッパ", name: "マドリード", latitude: 40.42, longitude: -3.7 },
-  reykjavik: { group: "ヨーロッパ", name: "レイキャビク", latitude: 64.15, longitude: -21.94 },
-  newyork: { group: "北アメリカ", name: "ニューヨーク", latitude: 40.71, longitude: -74.01 },
-  losangeles: { group: "北アメリカ", name: "ロサンゼルス", latitude: 34.05, longitude: -118.24 },
-  mexicocity: { group: "北アメリカ", name: "メキシコシティ", latitude: 19.43, longitude: -99.13 },
-  vancouver: { group: "北アメリカ", name: "バンクーバー", latitude: 49.28, longitude: -123.12 },
-  saopaulo: { group: "南アメリカ", name: "サンパウロ", latitude: -23.55, longitude: -46.63 },
-  buenosaires: { group: "南アメリカ", name: "ブエノスアイレス", latitude: -34.6, longitude: -58.38 },
-  lima: { group: "南アメリカ", name: "リマ", latitude: -12.05, longitude: -77.04 },
-  sydney: { group: "オセアニア", name: "シドニー", latitude: -33.87, longitude: 151.21 },
-  auckland: { group: "オセアニア", name: "オークランド", latitude: -36.85, longitude: 174.76 },
+  sapporo: { group: "日本", name: { ja: "札幌", en: "Sapporo" }, latitude: 43.06, longitude: 141.35 },
+  tokyo: { group: "日本", name: { ja: "東京", en: "Tokyo" }, latitude: 35.68, longitude: 139.77 },
+  naha: { group: "日本", name: { ja: "那覇", en: "Naha" }, latitude: 26.21, longitude: 127.68 },
+  seoul: { group: "東アジア", name: { ja: "ソウル", en: "Seoul" }, latitude: 37.57, longitude: 126.98 },
+  beijing: { group: "東アジア", name: { ja: "北京", en: "Beijing" }, latitude: 39.9, longitude: 116.41 },
+  shanghai: { group: "東アジア", name: { ja: "上海", en: "Shanghai" }, latitude: 31.23, longitude: 121.47 },
+  taipei: { group: "東アジア", name: { ja: "台北", en: "Taipei" }, latitude: 25.03, longitude: 121.57 },
+  hongkong: { group: "東アジア", name: { ja: "香港", en: "Hong Kong" }, latitude: 22.32, longitude: 114.17 },
+  bangkok: { group: "東南アジア", name: { ja: "バンコク", en: "Bangkok" }, latitude: 13.76, longitude: 100.5 },
+  singapore: { group: "東南アジア", name: { ja: "シンガポール", en: "Singapore" }, latitude: 1.35, longitude: 103.82 },
+  jakarta: { group: "東南アジア", name: { ja: "ジャカルタ", en: "Jakarta" }, latitude: -6.21, longitude: 106.85 },
+  denpasar: { group: "東南アジア", name: { ja: "デンパサール（バリ島）", en: "Denpasar (Bali)" }, latitude: -8.65, longitude: 115.22 },
+  mumbai: { group: "南アジア", name: { ja: "ムンバイ", en: "Mumbai" }, latitude: 19.08, longitude: 72.88 },
+  delhi: { group: "南アジア", name: { ja: "デリー", en: "Delhi" }, latitude: 28.61, longitude: 77.21 },
+  istanbul: { group: "中東・アフリカ", name: { ja: "イスタンブール", en: "Istanbul" }, latitude: 41.01, longitude: 28.98 },
+  dubai: { group: "中東・アフリカ", name: { ja: "ドバイ", en: "Dubai" }, latitude: 25.2, longitude: 55.27 },
+  cairo: { group: "中東・アフリカ", name: { ja: "カイロ", en: "Cairo" }, latitude: 30.04, longitude: 31.24 },
+  nairobi: { group: "中東・アフリカ", name: { ja: "ナイロビ", en: "Nairobi" }, latitude: -1.29, longitude: 36.82 },
+  london: { group: "ヨーロッパ", name: { ja: "ロンドン", en: "London" }, latitude: 51.51, longitude: -0.13 },
+  paris: { group: "ヨーロッパ", name: { ja: "パリ", en: "Paris" }, latitude: 48.86, longitude: 2.35 },
+  berlin: { group: "ヨーロッパ", name: { ja: "ベルリン", en: "Berlin" }, latitude: 52.52, longitude: 13.4 },
+  rome: { group: "ヨーロッパ", name: { ja: "ローマ", en: "Rome" }, latitude: 41.9, longitude: 12.5 },
+  madrid: { group: "ヨーロッパ", name: { ja: "マドリード", en: "Madrid" }, latitude: 40.42, longitude: -3.7 },
+  reykjavik: { group: "ヨーロッパ", name: { ja: "レイキャビク", en: "Reykjavík" }, latitude: 64.15, longitude: -21.94 },
+  newyork: { group: "北アメリカ", name: { ja: "ニューヨーク", en: "New York" }, latitude: 40.71, longitude: -74.01 },
+  losangeles: { group: "北アメリカ", name: { ja: "ロサンゼルス", en: "Los Angeles" }, latitude: 34.05, longitude: -118.24 },
+  mexicocity: { group: "北アメリカ", name: { ja: "メキシコシティ", en: "Mexico City" }, latitude: 19.43, longitude: -99.13 },
+  vancouver: { group: "北アメリカ", name: { ja: "バンクーバー", en: "Vancouver" }, latitude: 49.28, longitude: -123.12 },
+  saopaulo: { group: "南アメリカ", name: { ja: "サンパウロ", en: "São Paulo" }, latitude: -23.55, longitude: -46.63 },
+  buenosaires: { group: "南アメリカ", name: { ja: "ブエノスアイレス", en: "Buenos Aires" }, latitude: -34.6, longitude: -58.38 },
+  lima: { group: "南アメリカ", name: { ja: "リマ", en: "Lima" }, latitude: -12.05, longitude: -77.04 },
+  sydney: { group: "オセアニア", name: { ja: "シドニー", en: "Sydney" }, latitude: -33.87, longitude: 151.21 },
+  auckland: { group: "オセアニア", name: { ja: "オークランド", en: "Auckland" }, latitude: -36.85, longitude: 174.76 },
 };
 const REFRESH_MS = 15 * 60 * 1000;
 
@@ -105,7 +136,7 @@ function locate(): Promise<Place> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(FALLBACK);
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ name: "現在地", latitude: p.coords.latitude, longitude: p.coords.longitude }),
+      (p) => resolve({ name: HERE_NAME, latitude: p.coords.latitude, longitude: p.coords.longitude }),
       () => resolve(FALLBACK),
       { timeout: 10000, maximumAge: 30 * 60 * 1000 },
     );
@@ -132,32 +163,58 @@ export function setupWeather(
   statusEl: HTMLElement,
   onMood: (mood: Mood | null) => void,
 ) {
-  placeEl.append(new Option("現在地", HERE));
-  for (const group of new Set(Object.values(CITIES).map((c) => c.group))) {
-    const optgroup = document.createElement("optgroup");
-    optgroup.label = group;
-    for (const [id, city] of Object.entries(CITIES)) if (city.group === group) optgroup.append(new Option(city.name, id));
-    placeEl.append(optgroup);
+  placeEl.append(new Option("", HERE));
+  const optgroups = new Map<string, HTMLOptGroupElement>();
+  for (const [id, city] of Object.entries(CITIES)) {
+    let optgroup = optgroups.get(city.group);
+    if (!optgroup) {
+      optgroup = document.createElement("optgroup");
+      optgroups.set(city.group, optgroup);
+      placeEl.append(optgroup);
+    }
+    optgroup.append(new Option("", id));
   }
   const placeParam = new URLSearchParams(location.search).get("place");
   placeEl.value = placeParam && placeParam in CITIES ? placeParam : HERE;
 
   let timer: number | undefined;
   let here: Promise<Place> | undefined; // 位置情報の許可ダイアログを何度も出さないよう、1 回だけ取る
+  // 状態表示の中身。言語を切り替えたときに、取り直さずに表示だけ作り直す
+  let status: { kind: "none" } | { kind: "text"; text: L } | { kind: "weather"; place: Place; mood: Mood; c: Current } =
+    { kind: "none" };
+
+  const renderStatus = () => {
+    if (status.kind === "none") statusEl.textContent = "";
+    else if (status.kind === "text") statusEl.textContent = t(status.text);
+    else statusEl.textContent = formatStatus(status.place, status.mood, status.c);
+  };
+  const setStatus = (next: typeof status) => {
+    status = next;
+    renderStatus();
+  };
+
+  const renderNames = () => {
+    placeEl.options[0].text = t(HERE_NAME);
+    for (const [group, optgroup] of optgroups) optgroup.label = t(GROUP_NAMES[group]);
+    for (const option of placeEl.options) if (option.value in CITIES) option.text = t(CITIES[option.value].name);
+  };
+  renderNames();
+  onLangChange(() => {
+    renderNames();
+    renderStatus();
+  });
 
   const refresh = async () => {
-    statusEl.textContent = "取得中…";
+    setStatus({ kind: "text", text: LOADING });
     try {
       const p = placeEl.value === HERE ? await (here ??= locate()) : CITIES[placeEl.value];
       const c = await fetchCurrent(p);
       if (!toggleEl.checked) return;
       const mood = moodOf(c);
-      statusEl.textContent =
-        `${p.name} ${mood.icon} ${Math.round(c.temperature_2m)}℃ ` +
-        `降水${c.precipitation}mm 風${Math.round(c.wind_speed_10m)}km/h 雲${c.cloud_cover}%`;
+      setStatus({ kind: "weather", place: p, mood, c });
       onMood(mood);
     } catch {
-      statusEl.textContent = "天気を取得できませんでした";
+      setStatus({ kind: "text", text: FAILED });
     }
   };
 
@@ -176,7 +233,7 @@ export function setupWeather(
       refresh();
       timer = setInterval(refresh, REFRESH_MS);
     } else {
-      statusEl.textContent = "";
+      setStatus({ kind: "none" });
       onMood(null);
     }
   });

@@ -1,37 +1,48 @@
 import { syncNavQuery } from "./nav";
+import { type L, onLangChange, t } from "./i18n";
 
 // Ripples / Phase で共有するスケール定義と、選択 UI・音高ガイドの描画。
 // steps は主音からの半音数。小数は四分音や平均律から外れた音（ガムランの近似など）。
 
-export type Scale = { id: string; name: string; group: string; steps: number[] };
+export type Scale = { id: string; name: L; group: string; steps: number[] };
+
+// 地域の見出し。group は日本語のまま識別子として使う
+const GROUP_NAMES: Record<string, L> = {
+  日本: { ja: "日本", en: "Japan" },
+  中国: { ja: "中国", en: "China" },
+  中近東: { ja: "中近東", en: "Middle East" },
+  インド: { ja: "インド", en: "India" },
+  バリ島: { ja: "バリ島", en: "Bali" },
+  西洋: { ja: "西洋", en: "Western" },
+};
 export type Pitch = { freq: number; label: string; isRoot: boolean };
 
 export const SCALES: Scale[] = [
-  { group: "日本", id: "miyako", name: "都節音階（陰音階）", steps: [0, 1, 5, 7, 8] },
-  { group: "日本", id: "minyo", name: "民謡音階", steps: [0, 3, 5, 7, 10] },
-  { group: "日本", id: "ritsu", name: "律音階", steps: [0, 2, 5, 7, 9] },
-  { group: "日本", id: "ryukyu", name: "琉球音階", steps: [0, 4, 5, 7, 11] },
-  { group: "日本", id: "iwato", name: "岩戸音階", steps: [0, 1, 5, 6, 10] },
-  { group: "中国", id: "gong", name: "宮調", steps: [0, 2, 4, 7, 9] },
-  { group: "中国", id: "shang", name: "商調", steps: [0, 2, 5, 7, 10] },
-  { group: "中国", id: "jue", name: "角調", steps: [0, 3, 5, 8, 10] },
-  { group: "中国", id: "zhi", name: "徴調", steps: [0, 2, 5, 7, 9] },
-  { group: "中国", id: "yu", name: "羽調", steps: [0, 3, 5, 7, 10] },
-  { group: "中近東", id: "hijaz", name: "ヒジャーズ", steps: [0, 1, 4, 5, 7, 8, 10] },
-  { group: "中近東", id: "hijaz-kar", name: "ヒジャーズ・カール", steps: [0, 1, 4, 5, 7, 8, 11] },
-  { group: "中近東", id: "rast", name: "ラスト（四分音）", steps: [0, 2, 3.5, 5, 7, 9, 10.5] },
-  { group: "中近東", id: "bayati", name: "バヤーティ（四分音）", steps: [0, 1.5, 3, 5, 7, 8, 10] },
-  { group: "中近東", id: "saba", name: "サバー（四分音）", steps: [0, 1.5, 3, 4, 7, 8, 10] },
-  { group: "インド", id: "yaman", name: "ヤマン", steps: [0, 2, 4, 6, 7, 9, 11] },
-  { group: "インド", id: "bhairav", name: "バイラヴ", steps: [0, 1, 4, 5, 7, 8, 11] },
-  { group: "インド", id: "bhairavi", name: "バイラヴィ", steps: [0, 1, 3, 5, 7, 8, 10] },
-  { group: "インド", id: "todi", name: "トーディ", steps: [0, 1, 3, 6, 7, 8, 11] },
-  { group: "インド", id: "marwa", name: "マルワ", steps: [0, 1, 4, 6, 9, 11] },
-  { group: "バリ島", id: "pelog-selisir", name: "ペロッグ・スリシール", steps: [0, 1, 3, 7, 8] },
-  { group: "バリ島", id: "pelog", name: "ペロッグ（7音・ガムラン調律の近似）", steps: [0, 1.2, 2.7, 5.4, 6.7, 7.85, 9.5] },
-  { group: "バリ島", id: "slendro", name: "スレンドロ（オクターブ5等分）", steps: [0, 2.4, 4.8, 7.2, 9.6] },
-  { group: "西洋", id: "major-pentatonic", name: "メジャーペンタトニック", steps: [0, 2, 4, 7, 9] },
-  { group: "西洋", id: "lydian", name: "リディアン", steps: [0, 2, 4, 6, 7, 9, 11] },
+  { group: "日本", id: "miyako", name: { ja: "都節音階（陰音階）", en: "Miyako-bushi (In scale)" }, steps: [0, 1, 5, 7, 8] },
+  { group: "日本", id: "minyo", name: { ja: "民謡音階", en: "Min'yō" }, steps: [0, 3, 5, 7, 10] },
+  { group: "日本", id: "ritsu", name: { ja: "律音階", en: "Ritsu" }, steps: [0, 2, 5, 7, 9] },
+  { group: "日本", id: "ryukyu", name: { ja: "琉球音階", en: "Ryūkyū (Okinawan)" }, steps: [0, 4, 5, 7, 11] },
+  { group: "日本", id: "iwato", name: { ja: "岩戸音階", en: "Iwato" }, steps: [0, 1, 5, 6, 10] },
+  { group: "中国", id: "gong", name: { ja: "宮調", en: "Gong mode" }, steps: [0, 2, 4, 7, 9] },
+  { group: "中国", id: "shang", name: { ja: "商調", en: "Shang mode" }, steps: [0, 2, 5, 7, 10] },
+  { group: "中国", id: "jue", name: { ja: "角調", en: "Jue mode" }, steps: [0, 3, 5, 8, 10] },
+  { group: "中国", id: "zhi", name: { ja: "徴調", en: "Zhi mode" }, steps: [0, 2, 5, 7, 9] },
+  { group: "中国", id: "yu", name: { ja: "羽調", en: "Yu mode" }, steps: [0, 3, 5, 7, 10] },
+  { group: "中近東", id: "hijaz", name: { ja: "ヒジャーズ", en: "Hijaz" }, steps: [0, 1, 4, 5, 7, 8, 10] },
+  { group: "中近東", id: "hijaz-kar", name: { ja: "ヒジャーズ・カール", en: "Hijaz Kar" }, steps: [0, 1, 4, 5, 7, 8, 11] },
+  { group: "中近東", id: "rast", name: { ja: "ラスト（四分音）", en: "Rast (quarter tones)" }, steps: [0, 2, 3.5, 5, 7, 9, 10.5] },
+  { group: "中近東", id: "bayati", name: { ja: "バヤーティ（四分音）", en: "Bayati (quarter tones)" }, steps: [0, 1.5, 3, 5, 7, 8, 10] },
+  { group: "中近東", id: "saba", name: { ja: "サバー（四分音）", en: "Saba (quarter tones)" }, steps: [0, 1.5, 3, 4, 7, 8, 10] },
+  { group: "インド", id: "yaman", name: { ja: "ヤマン", en: "Yaman" }, steps: [0, 2, 4, 6, 7, 9, 11] },
+  { group: "インド", id: "bhairav", name: { ja: "バイラヴ", en: "Bhairav" }, steps: [0, 1, 4, 5, 7, 8, 11] },
+  { group: "インド", id: "bhairavi", name: { ja: "バイラヴィ", en: "Bhairavi" }, steps: [0, 1, 3, 5, 7, 8, 10] },
+  { group: "インド", id: "todi", name: { ja: "トーディ", en: "Todi" }, steps: [0, 1, 3, 6, 7, 8, 11] },
+  { group: "インド", id: "marwa", name: { ja: "マルワ", en: "Marwa" }, steps: [0, 1, 4, 6, 9, 11] },
+  { group: "バリ島", id: "pelog-selisir", name: { ja: "ペロッグ・スリシール", en: "Pelog Selisir" }, steps: [0, 1, 3, 7, 8] },
+  { group: "バリ島", id: "pelog", name: { ja: "ペロッグ（7音・ガムラン調律の近似）", en: "Pelog (7-tone, gamelan approx.)" }, steps: [0, 1.2, 2.7, 5.4, 6.7, 7.85, 9.5] },
+  { group: "バリ島", id: "slendro", name: { ja: "スレンドロ（オクターブ5等分）", en: "Slendro (octave in 5 equal steps)" }, steps: [0, 2.4, 4.8, 7.2, 9.6] },
+  { group: "西洋", id: "major-pentatonic", name: { ja: "メジャーペンタトニック", en: "Major pentatonic" }, steps: [0, 2, 4, 7, 9] },
+  { group: "西洋", id: "lydian", name: { ja: "リディアン", en: "Lydian" }, steps: [0, 2, 4, 6, 7, 9, 11] },
 ];
 
 export const ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -108,12 +119,23 @@ export function setupScalePicker(
   transposeRoot: (semitones: number) => void;
   root: () => string;
 } {
-  for (const group of new Set(SCALES.map((s) => s.group))) {
-    const optgroup = document.createElement("optgroup");
-    optgroup.label = group;
-    for (const s of SCALES.filter((s) => s.group === group)) optgroup.append(new Option(s.name, s.id));
-    scaleEl.append(optgroup);
+  const optgroups = new Map<string, HTMLOptGroupElement>();
+  for (const s of SCALES) {
+    let optgroup = optgroups.get(s.group);
+    if (!optgroup) {
+      optgroup = document.createElement("optgroup");
+      optgroups.set(s.group, optgroup);
+      scaleEl.append(optgroup);
+    }
+    optgroup.append(new Option("", s.id));
   }
+  // 言語を切り替えたら、選択はそのままで表示名だけ書き換える
+  const renderNames = () => {
+    for (const [group, optgroup] of optgroups) optgroup.label = t(GROUP_NAMES[group]);
+    for (const option of scaleEl.options) option.text = t(SCALES.find((s) => s.id === option.value)!.name);
+  };
+  renderNames();
+  onLangChange(renderNames);
   for (const r of ROOTS) rootEl.append(new Option(r, r));
 
   const params = new URLSearchParams(location.search);

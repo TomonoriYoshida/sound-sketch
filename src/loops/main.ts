@@ -6,6 +6,7 @@ import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 import { setupHelp } from "../help";
 import { setupChrome } from "../chrome";
+import { getLang, setupI18n, tk } from "../i18n";
 
 // 長さが大きく違うテープループを重ねる（イーノ『Music for Airports』の手法）。
 // クリックで置くループには長く柔らかい音が 1 つだけ入り、録音したループにはフレーズが入る。
@@ -47,6 +48,7 @@ const recordEl = document.querySelector<HTMLButtonElement>("#record")!;
 const recordStatusEl = document.querySelector<HTMLElement>("#record-status")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
+setupI18n();
 setupChrome();
 setupHelp();
 
@@ -215,7 +217,8 @@ let recording: Recording | null = null;
 
 function startRecording() {
   recording = { start: null, x: 0, y: 0, notes: [], points: [] };
-  recordEl.textContent = "■ 停止";
+  recordEl.dataset.i18n = "stop";
+  recordEl.textContent = tk("stop");
   recordEl.classList.add("recording");
 }
 
@@ -237,7 +240,8 @@ function recordNote(x: number, y: number) {
 function stopRecording() {
   const rec = recording!;
   recording = null;
-  recordEl.textContent = "● 録音";
+  recordEl.dataset.i18n = "record";
+  recordEl.textContent = tk("record");
   recordEl.classList.remove("recording");
   recordStatusEl.textContent = "";
   if (rec.start === null) return;
@@ -297,7 +301,8 @@ function draw() {
     g.arc(l.x, l.y, 3, 0, Math.PI * 2);
     g.fill();
 
-    const label = l.kind === "note" ? pitchAtY(l.y).label : `${l.notes.length} 音`;
+    const count = getLang() === "ja" ? `${l.notes.length} 音` : `${l.notes.length} notes`;
+    const label = l.kind === "note" ? pitchAtY(l.y).label : count;
     g.fillStyle = `hsla(${l.hue}, 20%, 70%, 0.6)`;
     g.font = "11px system-ui, sans-serif";
     g.textAlign = "center";
@@ -367,7 +372,11 @@ function frame(now: number) {
   if (recording) {
     idle = 0;
     const elapsed = recording.start === null ? 0 : Tone.now() - recording.start;
-    recordStatusEl.textContent = `録音中 ${recording.notes.length} 音 ${elapsed.toFixed(1)}s`;
+    const count = recording.notes.length;
+    recordStatusEl.textContent =
+      getLang() === "ja"
+        ? `録音中 ${count} 音 ${elapsed.toFixed(1)}s`
+        : `Recording ${count} ${count === 1 ? "note" : "notes"} ${elapsed.toFixed(1)}s`;
     if (elapsed >= MAX_RECORD_SECONDS) stopRecording();
   }
 

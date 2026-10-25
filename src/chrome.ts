@@ -1,3 +1,5 @@
+import { tk } from "./i18n";
+
 // キャンバスのページの、上のバーと設定パネル。
 // 「⚙ 設定」でパネルを開閉し、パネルの「×」や Esc でも閉じる。パネルを開いたままでもキャンバスで演奏できる。
 // 演奏が始まったあと、バーとパネルを 3 秒操作しないとバーが隠れ、隅の「≡」で戻す（PC もスマホも同じ操作）。
@@ -15,7 +17,8 @@ export function setupChrome() {
   show.type = "button";
   show.className = "chrome-show";
   show.textContent = "≡";
-  show.setAttribute("aria-label", "メニューを表示");
+  show.dataset.i18nAria = "showMenu";
+  show.setAttribute("aria-label", tk("showMenu"));
   document.body.append(show);
 
   let started = false;

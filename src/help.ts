@@ -1,5 +1,6 @@
 import "./help.css";
 import { HELP_BY_PAGE, HELP_COMMON, type HelpText } from "./help-texts";
+import { onLangChange, t, tk } from "./i18n";
 
 // 「説明」スイッチ。オンの間、ホバーできる端末ではコントロールにホバー（またはキーボードでフォーカス）すると吹き出しで、
 // タッチ端末では各コントロールの横の「?」をタップすると画面下から説明を出す。オンオフはブラウザに保存する
@@ -29,9 +30,9 @@ function saveEnabled(on: boolean) {
 
 function fillContent(container: HTMLElement, help: HelpText) {
   const title = document.createElement("strong");
-  title.textContent = help.title;
+  title.textContent = t(help.title);
   const text = document.createElement("p");
-  text.textContent = help.text;
+  text.textContent = t(help.text);
   container.replaceChildren(title, text);
 }
 
@@ -50,7 +51,8 @@ export function setupHelp() {
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "help-toggle";
-  toggle.textContent = "? 説明";
+  toggle.dataset.i18n = "help";
+  toggle.textContent = tk("help");
   // キャンバスのページではバーの右側、Keyboard ではナビの並びに置く
   (document.querySelector(".bar-actions") ?? document.querySelector(".nav")!).append(toggle);
 
@@ -93,7 +95,8 @@ export function setupHelp() {
     const close = document.createElement("button");
     close.type = "button";
     close.className = "help-sheet-close";
-    close.textContent = "閉じる";
+    close.dataset.i18n = "helpClose";
+    close.textContent = tk("helpClose");
     sheet.append(content, close);
     document.body.append(backdrop, sheet);
 
@@ -122,7 +125,9 @@ export function setupHelp() {
       badge.type = "button";
       badge.className = "help-badge";
       badge.textContent = "?";
-      badge.setAttribute("aria-label", `${help.title}の説明`);
+      const label = () => badge.setAttribute("aria-label", `${t(help.title)}${tk("helpAbout")}`);
+      label();
+      onLangChange(label);
       badge.addEventListener("click", (e) => {
         e.preventDefault(); // ラベルの中に置いたときに、チェックボックスなどが切り替わらないようにする
         open(help);
@@ -144,5 +149,7 @@ export function setupHelp() {
     if (!on) hide();
   };
   toggle.addEventListener("click", () => setEnabled(!isOn()));
+  // 言語を切り替えたら、出している説明は閉じる（次に開いたときに新しい言語で出る）
+  onLangChange(hide);
   setEnabled(loadEnabled());
 }

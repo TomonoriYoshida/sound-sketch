@@ -1,3 +1,5 @@
+import { getLang } from "./i18n";
+
 // 経過時間でゆっくり動く「指揮者」。各値の周期を割り切れない長さにして、
 // 同じ重なり方がほとんど二度と来ないようにする（イーノのテープループと同じ考え方）。
 
@@ -50,7 +52,11 @@ export function setupDrift(
     handlers.apply(drift);
 
     const remain = (MODULATION_PERIOD - (elapsed % MODULATION_PERIOD)) / speed;
-    statusEl.textContent = `主音 ${handlers.root()} · 次の転調まで ${formatTime(remain)}`;
+    // 1 秒ごとに書き直すので、言語を切り替えても次の更新で新しい言語になる
+    statusEl.textContent =
+      getLang() === "ja"
+        ? `主音 ${handlers.root()} · 次の転調まで ${formatTime(remain)}`
+        : `Root ${handlers.root()} · next key change in ${formatTime(remain)}`;
   };
 
   toggleEl.addEventListener("change", () => {

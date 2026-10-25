@@ -6,6 +6,7 @@ import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 import { setupHelp } from "../help";
 import { setupChrome } from "../chrome";
+import { setupI18n } from "../i18n";
 
 // 置いた音が、それぞれ少しずつ違う周期でループする。
 // 周期のわずかな差で音どうしの重なり方がゆっくりずれていく（スティーヴ・ライヒのフェイジング）。
@@ -40,6 +41,7 @@ const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
+setupI18n();
 setupChrome();
 setupHelp();
 

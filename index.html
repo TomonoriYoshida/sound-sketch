@@ -17,7 +17,7 @@
 
       <section class="controls">
         <label>
-          音源
+          <span data-i18n="instrument">音源</span>
           <select id="instrument">
             <option value="Synth">Synth</option>
             <option value="AMSynth">AMSynth</option>
@@ -25,11 +25,11 @@
             <option value="DuoSynth">DuoSynth</option>
             <option value="MonoSynth">MonoSynth</option>
             <option value="PluckSynth">PluckSynth</option>
-            <option value="Worklet">Worklet（自作）</option>
+            <option value="Worklet" data-i18n="worklet">Worklet（自作）</option>
           </select>
         </label>
         <label>
-          波形
+          <span data-i18n="waveform">波形</span>
           <select id="waveform">
             <option value="sine">sine</option>
             <option value="triangle">triangle</option>
@@ -38,19 +38,19 @@
           </select>
         </label>
         <label>
-          音量
+          <span data-i18n="volume">音量</span>
           <input id="volume" type="range" min="-40" max="0" value="-12" />
         </label>
         <label>
-          リバーブ
+          <span data-i18n="reverb">リバーブ</span>
           <input id="reverb" type="range" min="0" max="1" step="0.05" value="0.3" />
         </label>
         <label>
-          <span>トランスポーズ <output id="transpose-value">0</output></span>
+          <span><span data-i18n="transpose">トランスポーズ</span> <output id="transpose-value">0</output></span>
           <input id="transpose" type="range" min="-12" max="12" step="1" value="0" />
         </label>
         <label>
-          <span>オクターブ <output id="octave-value">0</output></span>
+          <span><span data-i18n="octave">オクターブ</span> <output id="octave-value">0</output></span>
           <input id="octave" type="range" min="-3" max="3" step="1" value="0" />
         </label>
       </section>
@@ -65,7 +65,7 @@
         <div id="keyboard" class="keyboard"></div>
       </div>
 
-      <p class="hint">
+      <p class="hint" data-i18n="hint.keyboard">
         クリック、または PC キーボードで演奏<br />
         下段 Z S X D C V G B H N J M（C4〜B4）／ 上段 Q 2 W 3 E R 5 T 6 Y 7 U I（C5〜C6）
       </p>
