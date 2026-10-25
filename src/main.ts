@@ -3,9 +3,11 @@ import "./style.css";
 import oscProcessorUrl from "./worklet/osc-processor.ts?worker&url";
 import type { OscMessage, Waveform } from "./worklet/osc-processor";
 import { syncNavQuery } from "./nav";
+import { setupHelp } from "./help";
 
 // Keyboard ではスケールを使わないが、Ripples / Phase の設定をそのまま次のページへ渡す
 syncNavQuery();
+setupHelp();
 
 type Key = { note: string; pcKey: string; black: boolean };
 

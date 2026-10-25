@@ -4,6 +4,7 @@ import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitche
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
 import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
+import { setupHelp } from "../help";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
 // 発音は Transport の 16 分音符に揃えるので、どこを叩いてもリズムが崩れない。
@@ -36,6 +37,8 @@ const g = canvas.getContext("2d")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
+
+setupHelp();
 
 // スケールを変えると、これから鳴る音から切り替わる
 const scalePicker = setupScalePicker(

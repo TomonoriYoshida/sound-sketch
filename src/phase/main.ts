@@ -4,6 +4,7 @@ import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitche
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
 import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
+import { setupHelp } from "../help";
 
 // 置いた音が、それぞれ少しずつ違う周期でループする。
 // 周期のわずかな差で音どうしの重なり方がゆっくりずれていく（スティーヴ・ライヒのフェイジング）。
@@ -37,6 +38,8 @@ const phraseTempoValueEl = document.querySelector<HTMLOutputElement>("#phrase-te
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
+
+setupHelp();
 
 // 種は縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
 // そのためスケールを変えると、置いてある種もその場で新しいスケールの音に置き換わる

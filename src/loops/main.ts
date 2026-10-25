@@ -4,6 +4,7 @@ import { drawPitchGuides, pitchAt, pitchIndexAt, setupScalePicker, visiblePitche
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "../weather";
 import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
+import { setupHelp } from "../help";
 
 // 長さが大きく違うテープループを重ねる（イーノ『Music for Airports』の手法）。
 // クリックで置くループには長く柔らかい音が 1 つだけ入り、録音したループにはフレーズが入る。
@@ -44,6 +45,8 @@ const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const recordEl = document.querySelector<HTMLButtonElement>("#record")!;
 const recordStatusEl = document.querySelector<HTMLElement>("#record-status")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
+
+setupHelp();
 
 // ループは縦位置だけを持ち、鳴るたびに今のスケールで音を決める
 const scalePicker = setupScalePicker(
