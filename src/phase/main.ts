@@ -11,8 +11,7 @@ import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 type Seed = {
   x: number;
   y: number;
-  period: number; // 秒
-  t0: number; // 最初に鳴った AudioContext 時刻
+  basePeriod: number; // 置いたときの横位置（と天気）で決まる単音モードの周期 (秒)
   plays: number;
   hue: number;
   loop: Tone.Loop;
@@ -30,6 +29,11 @@ const RING_RADIUS = 14;
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const g = canvas.getContext("2d")!;
 const fadeEl = document.querySelector<HTMLInputElement>("#fade")!;
+const modeEl = document.querySelector<HTMLSelectElement>("#mode")!;
+const phraseLengthEl = document.querySelector<HTMLSelectElement>("#phrase-length")!;
+const phraseNewEl = document.querySelector<HTMLButtonElement>("#phrase-new")!;
+const phraseTempoEl = document.querySelector<HTMLInputElement>("#phrase-tempo")!;
+const phraseTempoValueEl = document.querySelector<HTMLOutputElement>("#phrase-tempo-value")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
@@ -78,7 +82,7 @@ const synth = new Tone.PolySynth(Tone.FMSynth, {
   envelope: { attack: 0.01, decay: 2, sustain: 0, release: 2 },
   modulationEnvelope: { attack: 0.01, decay: 0.8, sustain: 0, release: 1 },
 }).connect(reverb);
-synth.maxPolyphony = 48;
+synth.maxPolyphony = 64; // フレーズモードでは 1 周に複数の音が重なる
 synth.volume.value = -16;
 
 // 天気: 気温で周期の長さ、風で周期の幅（ずれの速さ）、雨で自動の頻度、雲でリバーブが変わる。
@@ -139,9 +143,58 @@ let height = 0;
 let seeds: Seed[] = [];
 let blooms: Bloom[] = [];
 
-function pitchOf(seed: Seed) {
-  return pitchAt(pitches, pitchIndexAt(seed.y, height, pitches.length));
+// degree はフレーズ内の音の、出だしからのスケール上の度数
+function pitchOf(seed: Seed, degree = 0) {
+  return pitchAt(pitches, pitchIndexAt(seed.y, height, pitches.length) + degree);
 }
+
+// --- フレーズ ---
+
+// すべての種が同じフレーズを鳴らす（ライヒ『Piano Phase』のように、同じフレーズが周期の差でずれていく）。
+// 出だしは種の高さの音で、そこから 0〜5 度上の音を、直前と同じ音にならないように選ぶ
+let phrase: number[] = [];
+
+function generatePhrase() {
+  const length = Number(phraseLengthEl.value);
+  phrase = [0];
+  while (phrase.length < length) {
+    const next = Math.floor(Math.random() * 6);
+    if (next !== phrase[phrase.length - 1]) phrase.push(next);
+  }
+  retime();
+}
+
+function updatePhraseControls() {
+  const off = modeEl.value !== "phrase";
+  phraseLengthEl.disabled = off;
+  phraseNewEl.disabled = off;
+  phraseTempoEl.disabled = off;
+  retime();
+}
+
+// フレーズモードでは 1 周 = 音数 × 1 音の間隔（テンポで決まる）。
+// 横位置による周期の差（中央との比）はそのまま掛けて、フェイジングのずれを保つ
+function periodOf(seed: Seed): number {
+  if (modeEl.value !== "phrase") return seed.basePeriod;
+  const noteInterval = 60 / Number(phraseTempoEl.value);
+  return (seed.basePeriod / CENTER_PERIOD) * phrase.length * noteInterval;
+}
+
+// モード・音数・テンポが変わったら、置いてある種のループの長さも合わせる
+function retime() {
+  for (const s of seeds) s.loop.interval = periodOf(s);
+}
+
+modeEl.addEventListener("change", updatePhraseControls);
+phraseLengthEl.addEventListener("change", generatePhrase);
+phraseNewEl.addEventListener("click", generatePhrase);
+phraseTempoEl.addEventListener("input", () => {
+  phraseTempoValueEl.value = phraseTempoEl.value;
+  retime();
+});
+phraseTempoValueEl.value = phraseTempoEl.value;
+generatePhrase();
+updatePhraseControls();
 
 function periodAt(x: number): number {
   const m = weather ?? NEUTRAL_MOOD;
@@ -158,8 +211,7 @@ function plant(x: number, y: number) {
   const seed: Seed = {
     x,
     y,
-    period: periodAt(x),
-    t0: Tone.now(),
+    basePeriod: periodAt(x),
     plays: 0,
     hue: 160 + (x / width) * 140,
     loop: undefined!,
@@ -171,9 +223,20 @@ function plant(x: number, y: number) {
       return;
     }
     seed.plays++;
-    synth.triggerAttackRelease(pitchOf(seed).freq, "8n", time, 0.3 + 0.7 * strength);
-    Tone.getDraw().schedule(() => blooms.push({ x: seed.x, y: seed.y, life: 1, hue: seed.hue, strength }), time);
-  }, seed.period).start(transport.seconds);
+    // 単音モードは 1 周に 1 音。フレーズモードは 1 周の中にフレーズの音を均等に並べる
+    const degrees = modeEl.value === "phrase" ? phrase : [0];
+    const step = periodOf(seed) / degrees.length;
+    degrees.forEach((degree, i) => {
+      const at = time + i * step;
+      const velocity = (0.3 + 0.7 * strength) * (i === 0 ? 1 : 0.75);
+      synth.triggerAttackRelease(pitchOf(seed, degree).freq, "16n", at, velocity);
+      const bloomStrength = i === 0 ? strength : strength * 0.4;
+      Tone.getDraw().schedule(
+        () => blooms.push({ x: seed.x, y: seed.y, life: 1, hue: seed.hue, strength: bloomStrength }),
+        at,
+      );
+    });
+  }, periodOf(seed)).start(transport.seconds);
 
   seeds.push(seed);
   if (seeds.length > MAX_SEEDS) removeSeed(seeds[0]);
@@ -193,9 +256,8 @@ function draw() {
     g.stroke();
   }
 
-  const now = Tone.immediate();
   for (const s of seeds) {
-    const phase = (((now - s.t0) / s.period) % 1 + 1) % 1;
+    const phase = s.loop.progress;
     const alpha = fadeEl.checked ? Math.max(0.15, 1 - s.plays / FADE_PLAYS) : 1;
 
     g.strokeStyle = `hsla(${s.hue}, 30%, 60%, ${alpha * 0.4})`;
@@ -218,7 +280,7 @@ function draw() {
     g.fillStyle = `hsla(${s.hue}, 20%, 70%, ${alpha * 0.6})`;
     g.font = "11px system-ui, sans-serif";
     g.textAlign = "center";
-    g.fillText(`${pitchOf(s).label}  ${s.period.toFixed(2)}s`, s.x, s.y + RING_RADIUS + 16);
+    g.fillText(`${pitchOf(s).label}  ${periodOf(s).toFixed(2)}s`, s.x, s.y + RING_RADIUS + 16);
   }
 }
 

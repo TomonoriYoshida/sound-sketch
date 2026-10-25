@@ -104,6 +104,12 @@ canvas {
   cursor: pointer;
 }
 
+.toolbar button:disabled,
+.toolbar select:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .hint {
   position: fixed;
   left: 0;

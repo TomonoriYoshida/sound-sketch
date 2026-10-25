@@ -27,6 +27,27 @@
         <option value="60">×60</option>
       </select>
       <span id="drift-status" class="status"></span>
+      <label>
+        ループ
+        <select id="mode">
+          <option value="note">単音</option>
+          <option value="phrase">フレーズ</option>
+        </select>
+      </label>
+      <select id="phrase-length" aria-label="フレーズの音数">
+        <option value="3">3 音</option>
+        <option value="4">4 音</option>
+        <option value="5" selected>5 音</option>
+        <option value="6">6 音</option>
+        <option value="7">7 音</option>
+        <option value="8">8 音</option>
+      </select>
+      <label>
+        テンポ
+        <input id="phrase-tempo" type="range" min="60" max="240" step="5" value="130" />
+        <output id="phrase-tempo-value"></output>
+      </label>
+      <button id="phrase-new" type="button">フレーズを作り直す</button>
       <label><input id="fade" type="checkbox" checked /> 減衰</label>
       <label><input id="auto" type="checkbox" checked /> 自動</label>
       <button id="clear" type="button">クリア</button>
