@@ -185,6 +185,10 @@ canvas {
   margin-left: -4px;
 }
 
+.settings h2 .help-badge {
+  margin-left: 6px;
+}
+
 .settings > section > button + .help-badge {
   margin-left: 8px;
 }

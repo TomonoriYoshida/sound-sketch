@@ -20,7 +20,7 @@
     </header>
     <aside id="settings" class="settings" aria-label="設定" hidden>
       <button id="settings-close" class="settings-close" type="button" aria-label="設定を閉じる">×</button>
-      <section>
+      <section data-section="sound">
         <h2>音</h2>
         <label>スケール <select id="scale"></select></label>
         <label>主音 <select id="root"></select></label>
@@ -33,7 +33,7 @@
           <span class="range"><input id="density" type="range" min="1" max="5" step="1" /><output id="density-value"></output></span>
         </label>
       </section>
-      <section>
+      <section data-section="loop">
         <h2>ループ</h2>
         <label>
           種類
@@ -60,12 +60,12 @@
         <button id="phrase-new" type="button">フレーズを作り直す</button>
         <label>減衰 <input id="fade" type="checkbox" checked /></label>
       </section>
-      <section>
+      <section data-section="weather">
         <h2>天気</h2>
         <label>天気を使う <input id="weather" type="checkbox" /></label>
         <label>場所 <select id="place"></select></label>
       </section>
-      <section>
+      <section data-section="drift">
         <h2>変化</h2>
         <label>ゆっくり変化させる <input id="drift" type="checkbox" /></label>
         <label>
@@ -77,7 +77,7 @@
           </select>
         </label>
       </section>
-      <section>
+      <section data-section="auto">
         <h2>自動</h2>
         <label>自動で置く <input id="auto" type="checkbox" checked /></label>
       </section>

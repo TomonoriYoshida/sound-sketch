@@ -127,8 +127,8 @@ export function setupHelp() {
         e.preventDefault(); // ラベルの中に置いたときに、チェックボックスなどが切り替わらないようにする
         open(help);
       });
-      // ラベルは行の中（操作する部品のすぐ右）に、それ以外は要素の直後に置く
-      if (el instanceof HTMLLabelElement) el.append(badge);
+      // ラベルは行の中（操作する部品のすぐ右）に、見出しは文字のすぐ右に、それ以外は要素の直後に置く
+      if (el instanceof HTMLLabelElement || el instanceof HTMLHeadingElement) el.append(badge);
       else el.after(badge);
     }
   }
