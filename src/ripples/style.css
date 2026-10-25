@@ -83,6 +83,43 @@ canvas {
   font-size: 12px;
 }
 
+/* --- 隠す動き: 隠れている間はバーを消して押せなくし、隅の「≡」だけを出す --- */
+
+.bar {
+  transition: opacity 0.4s;
+}
+
+.chrome-hidden .bar {
+  opacity: 0;
+}
+
+.chrome-hidden .bar > * {
+  pointer-events: none;
+}
+
+.chrome-show {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  z-index: 11;
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.55;
+  visibility: hidden;
+}
+
+.chrome-show:hover {
+  opacity: 1;
+}
+
+.chrome-hidden .chrome-show {
+  visibility: visible;
+}
+
 /* --- 設定パネル --- */
 
 .settings {
@@ -104,6 +141,19 @@ canvas {
 
 .settings[hidden] {
   display: none;
+}
+
+.settings-close {
+  position: sticky;
+  top: 8px;
+  float: right;
+  width: 28px;
+  height: 28px;
+  margin: 8px -6px 0 0;
+  padding: 0;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
 }
 
 .settings h2 {
