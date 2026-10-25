@@ -6,6 +6,7 @@ import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 import { setupHelp } from "../help";
 import { setupChrome } from "../chrome";
+import { protectOutput } from "../audio";
 import { setupI18n } from "../i18n";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
@@ -40,6 +41,7 @@ const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
+protectOutput();
 setupI18n();
 setupChrome();
 setupHelp();

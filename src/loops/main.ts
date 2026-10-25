@@ -6,6 +6,7 @@ import { type Drift, densityFactor, NEUTRAL_DRIFT, setupDrift } from "../drift";
 import { densityLevelFactor, registerOffset, setupLevel } from "../levels";
 import { setupHelp } from "../help";
 import { setupChrome } from "../chrome";
+import { protectOutput } from "../audio";
 import { getLang, setupI18n, tk } from "../i18n";
 
 // 長さが大きく違うテープループを重ねる（イーノ『Music for Airports』の手法）。
@@ -48,6 +49,7 @@ const recordEl = document.querySelector<HTMLButtonElement>("#record")!;
 const recordStatusEl = document.querySelector<HTMLElement>("#record-status")!;
 const hintEl = document.querySelector<HTMLParagraphElement>("#hint")!;
 
+protectOutput();
 setupI18n();
 setupChrome();
 setupHelp();

@@ -209,6 +209,15 @@ canvas {
   width: 110px;
 }
 
+.settings .credit {
+  margin: 2px 0 0;
+  font-size: 11px;
+}
+
+.settings .credit a {
+  color: var(--muted);
+}
+
 .settings > section > button {
   margin-top: 6px;
 }

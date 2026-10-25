@@ -9,7 +9,7 @@ const STORAGE_KEY = "sound-sketch:help";
 
 function pageId(): string {
   const name = location.pathname.split("/").pop() ?? "";
-  return name === "" || name === "index.html" ? "keyboard" : name.replace(/\.html$/, "");
+  return name === "" || name === "index.html" ? "home" : name.replace(/\.html$/, "");
 }
 
 function loadEnabled(): boolean {

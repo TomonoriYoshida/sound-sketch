@@ -1,6 +1,12 @@
 // HTML や共通の部品に出す文言の辞書。キーは data-i18n / data-i18n-aria や tk() で使う。
 // 説明文は help-texts.ts、スケール名は scales.ts、都市名は weather.ts にまとめてある
 
+// ヒントの最後に足す、音が出ないときの案内
+const SILENT_NOTE = {
+  ja: "\n音が出ないときは、iPhone のマナーモードを解除してください",
+  en: "\nNo sound? On iPhone, turn off silent mode.",
+};
+
 export const STRINGS: Record<string, { ja: string; en: string }> = {
   // 上のバー
   clear: { ja: "クリア", en: "Clear" },
@@ -41,16 +47,46 @@ export const STRINGS: Record<string, { ja: string; en: string }> = {
 
   // キャンバスのページのヒント
   "hint.ripples": {
-    ja: "クリックすると波紋が広がり、ぶつかると音が鳴ります",
-    en: "Click to send out ripples. They make sounds when they collide.",
+    ja: "クリックすると波紋が広がり、ぶつかると音が鳴ります" + SILENT_NOTE.ja,
+    en: "Click to send out ripples. They make sounds when they collide." + SILENT_NOTE.en,
   },
   "hint.phase": {
-    ja: "クリックで音を置く。縦の位置で音の高さ、横の位置でループの周期が決まります\n周期がわずかに違う音どうしは、少しずつずれていきます",
-    en: "Click to place a note. Height sets the pitch, horizontal position sets the loop period.\nNotes with slightly different periods slowly drift apart.",
+    ja: "クリックで音を置く。縦の位置で音の高さ、横の位置でループの周期が決まります\n周期がわずかに違う音どうしは、少しずつずれていきます" + SILENT_NOTE.ja,
+    en: "Click to place a note. Height sets the pitch, horizontal position sets the loop period.\nNotes with slightly different periods slowly drift apart." + SILENT_NOTE.en,
   },
   "hint.loops": {
-    ja: "クリックでテープループを置く。縦の位置で音の高さ、横の位置でループの長さ（15〜35 秒）が決まります\n長さの違うループが重なり、同じ響きはほとんど二度と来ません。ループの中心をクリックすると外せます\n「録音」を押してクリックで演奏し、「停止」を押すと、そのフレーズが録音した長さのループになります",
-    en: "Click to place a tape loop. Height sets the pitch, horizontal position sets the loop length (15–35 s).\nLoops of different lengths overlap, so the same harmony almost never returns. Click a loop's center to remove it.\nPress “Rec”, play by clicking, then press “Stop” to turn the phrase into a loop of the recorded length.",
+    ja: "クリックでテープループを置く。縦の位置で音の高さ、横の位置でループの長さ（15〜35 秒）が決まります\n長さの違うループが重なり、同じ響きはほとんど二度と来ません。ループの中心をクリックすると外せます\n「録音」を押してクリックで演奏し、「停止」を押すと、そのフレーズが録音した長さのループになります" + SILENT_NOTE.ja,
+    en: "Click to place a tape loop. Height sets the pitch, horizontal position sets the loop length (15–35 s).\nLoops of different lengths overlap, so the same harmony almost never returns. Click a loop's center to remove it.\nPress “Rec”, play by clicking, then press “Stop” to turn the phrase into a loop of the recorded length." + SILENT_NOTE.en,
+  },
+
+  // トップページ
+  "home.lead": {
+    ja: "ブラウザだけで鳴る、ジェネレーティブ音楽のスケッチ集です。",
+    en: "A collection of generative music sketches that play right in your browser.",
+  },
+  "home.ripples": {
+    ja: "波紋が広がり、ぶつかると音が鳴ります。",
+    en: "Ripples spread out and make sounds when they collide.",
+  },
+  "home.phase": {
+    ja: "周期がわずかに違うループが、少しずつずれていきます。",
+    en: "Loops with slightly different periods slowly drift apart.",
+  },
+  "home.loops": {
+    ja: "長さの違うテープループが重なり、同じ響きはほとんど二度と来ません。",
+    en: "Tape loops of different lengths overlap, so the same harmony almost never returns.",
+  },
+  "home.respect": {
+    ja: "ブライアン・イーノとスティーヴ・ライヒの音楽と、その手法への敬意を込めて。",
+    en: "Made with deep respect for the music and ideas of Brian Eno and Steve Reich.",
+  },
+  "home.note": {
+    ja: "音が出ないときは、iPhone のマナーモードを解除してください。ヘッドホンでの視聴がおすすめです。",
+    en: "No sound? On iPhone, turn off silent mode. Headphones are recommended.",
+  },
+  "home.disclaimer": {
+    ja: "本作はブライアン・イーノ氏、スティーヴ・ライヒ氏および関係者とは関係のない、個人の作品です。",
+    en: "This is a personal project, not affiliated with Brian Eno, Steve Reich or their representatives.",
   },
 
   // Keyboard
@@ -62,7 +98,7 @@ export const STRINGS: Record<string, { ja: string; en: string }> = {
   octave: { ja: "オクターブ", en: "Octave" },
   worklet: { ja: "Worklet（自作）", en: "Worklet (custom)" },
   "hint.keyboard": {
-    ja: "クリック、または PC キーボードで演奏\n下段 Z S X D C V G B H N J M（C4〜B4）／ 上段 Q 2 W 3 E R 5 T 6 Y 7 U I（C5〜C6）",
-    en: "Play by clicking or with your computer keyboard\nLower row Z S X D C V G B H N J M (C4–B4) / upper row Q 2 W 3 E R 5 T 6 Y 7 U I (C5–C6)",
+    ja: "クリック、または PC キーボードで演奏\n下段 Z S X D C V G B H N J M（C4〜B4）／ 上段 Q 2 W 3 E R 5 T 6 Y 7 U I（C5〜C6）" + SILENT_NOTE.ja,
+    en: "Play by clicking or with your computer keyboard\nLower row Z S X D C V G B H N J M (C4–B4) / upper row Q 2 W 3 E R 5 T 6 Y 7 U I (C5–C6)" + SILENT_NOTE.en,
   },
 };

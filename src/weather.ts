@@ -132,11 +132,19 @@ function moodOf(c: Current): Mood {
   };
 }
 
+const roundCoord = (v: number) => Math.round(v * 100) / 100;
+
 function locate(): Promise<Place> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(FALLBACK);
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ name: HERE_NAME, latitude: p.coords.latitude, longitude: p.coords.longitude }),
+      // 天気を調べるには約 1 km の精度で足りるので、細かい位置を外部に送らないよう小数点以下 2 桁に丸める
+      (p) =>
+        resolve({
+          name: HERE_NAME,
+          latitude: roundCoord(p.coords.latitude),
+          longitude: roundCoord(p.coords.longitude),
+        }),
       () => resolve(FALLBACK),
       { timeout: 10000, maximumAge: 30 * 60 * 1000 },
     );

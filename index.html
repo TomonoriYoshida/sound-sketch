@@ -3,73 +3,62 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="ブラウザだけで鳴る、ジェネレーティブ音楽のスケッチ集。A collection of generative music sketches that play in your browser."
+    />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <title>sound-sketch</title>
   </head>
   <body>
-    <main>
+    <header class="home-bar">
+      <div class="bar-actions"></div>
+    </header>
+    <main class="home">
       <h1>sound-sketch</h1>
-      <nav class="nav">
-        <a href="./" aria-current="page">Keyboard</a>
-        <a href="./ripples.html">Ripples</a>
-        <a href="./phase.html">Phase</a>
-        <a href="./loops.html">Loops</a>
-      </nav>
+      <p class="lead" data-i18n="home.lead">ブラウザだけで鳴る、ジェネレーティブ音楽のスケッチ集です。</p>
 
-      <section class="controls">
-        <label>
-          <span data-i18n="instrument">音源</span>
-          <select id="instrument">
-            <option value="Synth">Synth</option>
-            <option value="AMSynth">AMSynth</option>
-            <option value="FMSynth">FMSynth</option>
-            <option value="DuoSynth">DuoSynth</option>
-            <option value="MonoSynth">MonoSynth</option>
-            <option value="PluckSynth">PluckSynth</option>
-            <option value="Worklet" data-i18n="worklet">Worklet（自作）</option>
-          </select>
-        </label>
-        <label>
-          <span data-i18n="waveform">波形</span>
-          <select id="waveform">
-            <option value="sine">sine</option>
-            <option value="triangle">triangle</option>
-            <option value="square">square</option>
-            <option value="sawtooth">sawtooth</option>
-          </select>
-        </label>
-        <label>
-          <span data-i18n="volume">音量</span>
-          <input id="volume" type="range" min="-40" max="0" value="-12" />
-        </label>
-        <label>
-          <span data-i18n="reverb">リバーブ</span>
-          <input id="reverb" type="range" min="0" max="1" step="0.05" value="0.3" />
-        </label>
-        <label>
-          <span><span data-i18n="transpose">トランスポーズ</span> <output id="transpose-value">0</output></span>
-          <input id="transpose" type="range" min="-12" max="12" step="1" value="0" />
-        </label>
-        <label>
-          <span><span data-i18n="octave">オクターブ</span> <output id="octave-value">0</output></span>
-          <input id="octave" type="range" min="-3" max="3" step="1" value="0" />
-        </label>
-      </section>
+      <ul class="pieces">
+        <li>
+          <a href="./ripples.html">
+            <h2>Ripples</h2>
+            <p data-i18n="home.ripples">波紋が広がり、ぶつかると音が鳴ります。</p>
+          </a>
+        </li>
+        <li>
+          <a href="./phase.html">
+            <h2>Phase</h2>
+            <p data-i18n="home.phase">周期がわずかに違うループが、少しずつずれていきます。</p>
+          </a>
+        </li>
+        <li>
+          <a href="./loops.html">
+            <h2>Loops</h2>
+            <p data-i18n="home.loops">長さの違うテープループが重なり、同じ響きはほとんど二度と来ません。</p>
+          </a>
+        </li>
+      </ul>
 
-      <section class="controls effects">
-        <label><input id="fx-distortion" type="checkbox" /> Distortion</label>
-        <label><input id="fx-chorus" type="checkbox" /> Chorus</label>
-        <label><input id="fx-delay" type="checkbox" /> Delay</label>
-      </section>
-
-      <div class="keyboard-scroll">
-        <div id="keyboard" class="keyboard"></div>
-      </div>
-
-      <p class="hint" data-i18n="hint.keyboard">
-        クリック、または PC キーボードで演奏<br />
-        下段 Z S X D C V G B H N J M（C4〜B4）／ 上段 Q 2 W 3 E R 5 T 6 Y 7 U I（C5〜C6）
+      <p class="respect" data-i18n="home.respect">
+        ブライアン・イーノとスティーヴ・ライヒの音楽と、その手法への敬意を込めて。
+      </p>
+      <p class="note" data-i18n="home.note">
+        音が出ないときは、iPhone のマナーモードを解除してください。ヘッドホンでの視聴がおすすめです。
       </p>
     </main>
-    <script type="module" src="/src/main.ts"></script>
+    <footer class="home-footer">
+      <p data-i18n="home.disclaimer">
+        本作はブライアン・イーノ氏、スティーヴ・ライヒ氏および関係者とは関係のない、個人の作品です。
+      </p>
+      <p>
+        <a href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a>
+        · Built with <a href="https://tonejs.github.io/" target="_blank" rel="noopener">Tone.js</a>
+      </p>
+      <p>
+        © 2026 Tomonori Yoshida ·
+        <a href="https://github.com/TomonoriYoshida/sound-sketch" target="_blank" rel="noopener">MIT License</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/home/main.ts"></script>
   </body>
 </html>

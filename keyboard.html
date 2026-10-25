@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <title>sound-sketch</title>
+  </head>
+  <body>
+    <main>
+      <h1>sound-sketch</h1>
+      <nav class="nav">
+        <a href="./">sound-sketch</a>
+        <a href="./ripples.html">Ripples</a>
+        <a href="./phase.html">Phase</a>
+        <a href="./loops.html">Loops</a>
+        <a href="./keyboard.html" aria-current="page">Keyboard</a>
+      </nav>
+
+      <section class="controls">
+        <label>
+          <span data-i18n="instrument">音源</span>
+          <select id="instrument">
+            <option value="Synth">Synth</option>
+            <option value="AMSynth">AMSynth</option>
+            <option value="FMSynth">FMSynth</option>
+            <option value="DuoSynth">DuoSynth</option>
+            <option value="MonoSynth">MonoSynth</option>
+            <option value="PluckSynth">PluckSynth</option>
+            <option value="Worklet" data-i18n="worklet">Worklet（自作）</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="waveform">波形</span>
+          <select id="waveform">
+            <option value="sine">sine</option>
+            <option value="triangle">triangle</option>
+            <option value="square">square</option>
+            <option value="sawtooth">sawtooth</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="volume">音量</span>
+          <input id="volume" type="range" min="-40" max="0" value="-12" />
+        </label>
+        <label>
+          <span data-i18n="reverb">リバーブ</span>
+          <input id="reverb" type="range" min="0" max="1" step="0.05" value="0.3" />
+        </label>
+        <label>
+          <span><span data-i18n="transpose">トランスポーズ</span> <output id="transpose-value">0</output></span>
+          <input id="transpose" type="range" min="-12" max="12" step="1" value="0" />
+        </label>
+        <label>
+          <span><span data-i18n="octave">オクターブ</span> <output id="octave-value">0</output></span>
+          <input id="octave" type="range" min="-3" max="3" step="1" value="0" />
+        </label>
+      </section>
+
+      <section class="controls effects">
+        <label><input id="fx-distortion" type="checkbox" /> Distortion</label>
+        <label><input id="fx-chorus" type="checkbox" /> Chorus</label>
+        <label><input id="fx-delay" type="checkbox" /> Delay</label>
+      </section>
+
+      <div class="keyboard-scroll">
+        <div id="keyboard" class="keyboard"></div>
+      </div>
+
+      <p class="hint" data-i18n="hint.keyboard">
+        クリック、または PC キーボードで演奏<br />
+        下段 Z S X D C V G B H N J M（C4〜B4）／ 上段 Q 2 W 3 E R 5 T 6 Y 7 U I（C5〜C6）
+      </p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

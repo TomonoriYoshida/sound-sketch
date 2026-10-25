@@ -5,9 +5,11 @@ import type { OscMessage, Waveform } from "./worklet/osc-processor";
 import { syncNavQuery } from "./nav";
 import { setupHelp } from "./help";
 import { setupI18n } from "./i18n";
+import { protectOutput } from "./audio";
 
 // Keyboard ではスケールを使わないが、Ripples / Phase の設定をそのまま次のページへ渡す
 syncNavQuery();
+protectOutput();
 setupI18n();
 setupHelp();
 
