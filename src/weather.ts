@@ -28,21 +28,41 @@ type Sky = "clear" | "cloudy" | "drizzle" | "rain" | "snow" | "thunder";
 const FALLBACK: Place = { name: "東京（位置情報なし）", latitude: 35.68, longitude: 139.77 };
 const HERE = "here";
 
-// 場所のプルダウンの選択肢。HERE はブラウザの位置情報を使う
-const CITIES: Record<string, Place> = {
-  sapporo: { name: "札幌", latitude: 43.06, longitude: 141.35 },
-  sendai: { name: "仙台", latitude: 38.27, longitude: 140.87 },
-  tokyo: { name: "東京", latitude: 35.68, longitude: 139.77 },
-  yokohama: { name: "横浜", latitude: 35.44, longitude: 139.64 },
-  nagoya: { name: "名古屋", latitude: 35.18, longitude: 136.91 },
-  kanazawa: { name: "金沢", latitude: 36.56, longitude: 136.66 },
-  kyoto: { name: "京都", latitude: 35.01, longitude: 135.77 },
-  osaka: { name: "大阪", latitude: 34.69, longitude: 135.5 },
-  hiroshima: { name: "広島", latitude: 34.39, longitude: 132.46 },
-  takamatsu: { name: "高松", latitude: 34.34, longitude: 134.05 },
-  fukuoka: { name: "福岡", latitude: 33.59, longitude: 130.4 },
-  kagoshima: { name: "鹿児島", latitude: 31.6, longitude: 130.56 },
-  naha: { name: "那覇", latitude: 26.21, longitude: 127.68 },
+// 場所のプルダウンの選択肢。地域ごとに見出しを付ける。HERE はブラウザの位置情報を使う
+const CITIES: Record<string, Place & { group: string }> = {
+  sapporo: { group: "日本", name: "札幌", latitude: 43.06, longitude: 141.35 },
+  tokyo: { group: "日本", name: "東京", latitude: 35.68, longitude: 139.77 },
+  naha: { group: "日本", name: "那覇", latitude: 26.21, longitude: 127.68 },
+  seoul: { group: "東アジア", name: "ソウル", latitude: 37.57, longitude: 126.98 },
+  beijing: { group: "東アジア", name: "北京", latitude: 39.9, longitude: 116.41 },
+  shanghai: { group: "東アジア", name: "上海", latitude: 31.23, longitude: 121.47 },
+  taipei: { group: "東アジア", name: "台北", latitude: 25.03, longitude: 121.57 },
+  hongkong: { group: "東アジア", name: "香港", latitude: 22.32, longitude: 114.17 },
+  bangkok: { group: "東南アジア", name: "バンコク", latitude: 13.76, longitude: 100.5 },
+  singapore: { group: "東南アジア", name: "シンガポール", latitude: 1.35, longitude: 103.82 },
+  jakarta: { group: "東南アジア", name: "ジャカルタ", latitude: -6.21, longitude: 106.85 },
+  denpasar: { group: "東南アジア", name: "デンパサール（バリ島）", latitude: -8.65, longitude: 115.22 },
+  mumbai: { group: "南アジア", name: "ムンバイ", latitude: 19.08, longitude: 72.88 },
+  delhi: { group: "南アジア", name: "デリー", latitude: 28.61, longitude: 77.21 },
+  istanbul: { group: "中東・アフリカ", name: "イスタンブール", latitude: 41.01, longitude: 28.98 },
+  dubai: { group: "中東・アフリカ", name: "ドバイ", latitude: 25.2, longitude: 55.27 },
+  cairo: { group: "中東・アフリカ", name: "カイロ", latitude: 30.04, longitude: 31.24 },
+  nairobi: { group: "中東・アフリカ", name: "ナイロビ", latitude: -1.29, longitude: 36.82 },
+  london: { group: "ヨーロッパ", name: "ロンドン", latitude: 51.51, longitude: -0.13 },
+  paris: { group: "ヨーロッパ", name: "パリ", latitude: 48.86, longitude: 2.35 },
+  berlin: { group: "ヨーロッパ", name: "ベルリン", latitude: 52.52, longitude: 13.4 },
+  rome: { group: "ヨーロッパ", name: "ローマ", latitude: 41.9, longitude: 12.5 },
+  madrid: { group: "ヨーロッパ", name: "マドリード", latitude: 40.42, longitude: -3.7 },
+  reykjavik: { group: "ヨーロッパ", name: "レイキャビク", latitude: 64.15, longitude: -21.94 },
+  newyork: { group: "北アメリカ", name: "ニューヨーク", latitude: 40.71, longitude: -74.01 },
+  losangeles: { group: "北アメリカ", name: "ロサンゼルス", latitude: 34.05, longitude: -118.24 },
+  mexicocity: { group: "北アメリカ", name: "メキシコシティ", latitude: 19.43, longitude: -99.13 },
+  vancouver: { group: "北アメリカ", name: "バンクーバー", latitude: 49.28, longitude: -123.12 },
+  saopaulo: { group: "南アメリカ", name: "サンパウロ", latitude: -23.55, longitude: -46.63 },
+  buenosaires: { group: "南アメリカ", name: "ブエノスアイレス", latitude: -34.6, longitude: -58.38 },
+  lima: { group: "南アメリカ", name: "リマ", latitude: -12.05, longitude: -77.04 },
+  sydney: { group: "オセアニア", name: "シドニー", latitude: -33.87, longitude: 151.21 },
+  auckland: { group: "オセアニア", name: "オークランド", latitude: -36.85, longitude: 174.76 },
 };
 const REFRESH_MS = 15 * 60 * 1000;
 
@@ -113,7 +133,12 @@ export function setupWeather(
   onMood: (mood: Mood | null) => void,
 ) {
   placeEl.append(new Option("現在地", HERE));
-  for (const [id, city] of Object.entries(CITIES)) placeEl.append(new Option(city.name, id));
+  for (const group of new Set(Object.values(CITIES).map((c) => c.group))) {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = group;
+    for (const [id, city] of Object.entries(CITIES)) if (city.group === group) optgroup.append(new Option(city.name, id));
+    placeEl.append(optgroup);
+  }
   const placeParam = new URLSearchParams(location.search).get("place");
   placeEl.value = placeParam && placeParam in CITIES ? placeParam : HERE;
 
