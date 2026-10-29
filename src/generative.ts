@@ -106,6 +106,38 @@ export function setupGenerativePage(options: {
   let started = false;
   let starting: Promise<void> | null = null;
 
+  // 最初の操作で音を出せる状態にし、ヒントを消す。
+  // 音を出せなかったとき（ブラウザが許可しないなど）は、次の操作でもう一度試す
+  const ensureStarted = (): Promise<void> => {
+    starting ??= (async () => {
+      try {
+        await Tone.start();
+      } catch (e) {
+        console.warn(e);
+      }
+      if (Tone.getContext().state !== "running") {
+        starting = null;
+        return;
+      }
+      started = true;
+      transport.start();
+      hintEl.classList.add("hidden");
+    })();
+    return starting;
+  };
+
+  // iPhone などのタッチ操作では、触れた瞬間（pointerdown）は音を出す許可にならず、指を離したとき（pointerup）に許可される。
+  // 触れた瞬間の ensureStarted が許可を待っているあいだに、ここで改めて頼む
+  document.addEventListener("pointerup", () => {
+    if (started) return;
+    Tone.start().catch(() => {}); // 失敗は ensureStarted の側で扱う
+    void ensureStarted();
+  });
+
+  // iPhone の消音スイッチがオンでも鳴らす（音楽を聴くページとして扱ってもらう。対応していないブラウザでは何もしない）
+  const audioSession = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (audioSession) audioSession.type = "playback";
+
   return {
     transport,
     // 画面に割り当てている音高（低い順）
@@ -119,25 +151,7 @@ export function setupGenerativePage(options: {
     autoDensity: () =>
       (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel),
     started: () => started,
-    // 最初の操作で音を出せる状態にし、ヒントを消す
-    // 音を出せなかったとき（ブラウザが許可しないなど）は、次の操作でもう一度試す
-    ensureStarted(): Promise<void> {
-      starting ??= (async () => {
-        try {
-          await Tone.start();
-        } catch (e) {
-          console.warn(e);
-        }
-        if (Tone.getContext().state !== "running") {
-          starting = null;
-          return;
-        }
-        started = true;
-        transport.start();
-        hintEl.classList.add("hidden");
-      })();
-      return starting;
-    },
+    ensureStarted,
   };
 }
 
