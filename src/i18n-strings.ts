@@ -10,6 +10,9 @@ const SILENT_NOTE = {
 export const STRINGS: Record<string, { ja: string; en: string }> = {
   // 上のバー
   clear: { ja: "クリア", en: "Clear" },
+  restart: { ja: "最初から", en: "From the top" },
+  composer: { ja: "作曲家", en: "Composer" },
+  movement: { ja: "楽章", en: "Movement" },
   settings: { ja: "⚙ 設定", en: "⚙ Settings" },
   settingsPanel: { ja: "設定", en: "Settings" },
   settingsClose: { ja: "設定を閉じる", en: "Close settings" },
@@ -26,6 +29,7 @@ export const STRINGS: Record<string, { ja: string; en: string }> = {
   "sec.weather": { ja: "天気", en: "Weather" },
   "sec.drift": { ja: "変化", en: "Drift" },
   "sec.auto": { ja: "自動", en: "Auto" },
+  "sec.repeat": { ja: "反復", en: "Repetition" },
 
   // 設定パネルの項目
   scale: { ja: "スケール", en: "Scale" },
@@ -57,6 +61,10 @@ export const STRINGS: Record<string, { ja: string; en: string }> = {
   "hint.loops": {
     ja: "クリックでテープループを置く。縦の位置で音の高さ、横の位置でループの長さ（15〜35 秒）が決まります\n長さの違うループが重なり、同じ響きはほとんど二度と来ません。ループの中心をクリックすると外せます\n「録音」を押してクリックで演奏し、「停止」を押すと、そのフレーズが録音した長さのループになります" + SILENT_NOTE.ja,
     en: "Click to place a tape loop. Height sets the pitch, horizontal position sets the loop length (15–35 s).\nLoops of different lengths overlap, so the same harmony almost never returns. Click a loop's center to remove it.\nPress “Rec”, play by clicking, then press “Stop” to turn the phrase into a loop of the recorded length." + SILENT_NOTE.en,
+  },
+  "hint.sonata": {
+    ja: "クリックすると、ソナタが I 楽章から始まります。3 つの楽章が続けて鳴り、III が終わるとソナタも終わります\n演奏中にクリックすると、その高さの音が音楽に加わります" + SILENT_NOTE.ja,
+    en: "Click to start the sonata from movement I. The three movements play in turn, and the sonata ends after III.\nClick while it plays to add a note at that height to the music." + SILENT_NOTE.en,
   },
 
   // トップページ

@@ -241,6 +241,47 @@ export const HELP_BY_PAGE: Record<string, Record<string, HelpText>> = {
       text: { ja: "置いてある種をすべて消します。", en: "Removes all seeds." },
     },
   },
+  sonata: {
+    [PAGE_GUIDE]: {
+      title: { ja: "Sonata の遊び方", en: "How to play Sonata" },
+      text: withBarNote({
+        ja: "作曲家がピアノソナタを書いたら、という試みです。作曲家ごとに独立した 3 楽章のソナタで、曲そのものは引用せず、作り方だけを借りています。楽章はそれぞれ数分の流れ（始まり・盛り上がり・終わり）を持ち、I → II → III と続けて鳴ります。演奏中にクリックすると、その高さの音が音楽に加わります。",
+        en: "What if these composers wrote a piano sonata? Each composer has an independent three-movement sonata that borrows their methods, not their pieces. Each movement has its own few-minute arc and they play I → II → III in turn. Click while it plays to add a note at that height.",
+      }),
+    },
+    "#composer": {
+      title: { ja: "作曲家", en: "Composer" },
+      text: {
+        ja: "どの作曲家のソナタを鳴らすかです。一柳慧: I. 反復のずれ（両手の長さの違う型がずれていき、頭がそろって終わる）、II. 間（偶然で決めた音と長い沈黙）、III. トッカータ（1 音ずつ伸びる速い旋律が、広がりながら加速する）。スティーヴ・ライヒ: I. フェイズ（両手が同じ型を弾き、片方が 1 音ずつ前へずれて、12 回でまたそろう）、II. 脈動する和音（刻み続ける和音が息の長さでふくらんで消え、少しずつ移って最初の和音に帰る）、III. 積み上げ（休符を 1 つずつ音に置き換え、ずらした位置で別の手も同じ型を積み、最後は休符に戻す）。",
+        en: "Whose sonata to play. Toshi Ichiyanagi: I. Shifting repetitions (two hands' patterns of different lengths drift apart and end when their starts meet), II. Ma (chance notes and long silences), III. Toccata (a fast line grows one note at a time, widening and speeding up). Steve Reich: I. Phase (both hands play the same pattern; one creeps ahead a note at a time until they meet again after 12 shifts), II. Pulsing chords (repeated chords swell and fade over a breath, moving step by step back to the first chord), III. Build-up (rests become notes one at a time, other hands build the same pattern at an offset, then it thins back to rests).",
+      },
+    },
+    "#movement": {
+      title: { ja: "楽章", en: "Movement" },
+      text: {
+        ja: "今の楽章です。選ぶと、その楽章の始めから鳴らします。そこから先の楽章も続けて鳴ります。",
+        en: "The current movement. Choosing one plays it from the start, and the following movements continue after it.",
+      },
+    },
+    "#restart": {
+      title: { ja: "最初から", en: "From the top" },
+      text: { ja: "ソナタを I 楽章の始めから鳴らし直します。", en: "Plays the sonata again from the start of movement I." },
+    },
+    '[data-section="repeat"] h2': {
+      title: { ja: "反復", en: "Repetition" },
+      text: {
+        ja: "速い楽章の刻みの設定です。",
+        en: "Settings for the pulse of the fast movements.",
+      },
+    },
+    "#tempo": {
+      title: { ja: "テンポ", en: "Tempo" },
+      text: {
+        ja: "4 分音符の速さです。一柳慧の I と III、ライヒの I は 16 分音符、ライヒの II と III は 8 分音符で刻みます。天気を使うと、気温でさらに速くなったり遅くなったりします。",
+        en: "Quarter-note tempo. Ichiyanagi I and III and Reich I move in sixteenths, Reich II and III in eighths. With weather on, temperature makes it faster or slower.",
+      },
+    },
+  },
   loops: {
     [PAGE_GUIDE]: {
       title: { ja: "Loops の遊び方", en: "How to play Loops" },

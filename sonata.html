@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <title>Sonata - sound-sketch</title>
+  </head>
+  <body>
+    <header class="bar">
+      <nav class="nav">
+        <a href="./">sound-sketch</a>
+        <a href="./ripples.html">Ripples</a>
+        <a href="./phase.html">Phase</a>
+        <a href="./loops.html">Loops</a>
+        <a href="./sonata.html" aria-current="page">Sonata</a>
+      </nav>
+      <div class="bar-actions">
+        <select id="composer" aria-label="作曲家" data-i18n-aria="composer"></select>
+        <select id="movement" aria-label="楽章" data-i18n-aria="movement"></select>
+        <button id="restart" type="button" data-i18n="restart">最初から</button>
+        <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings" data-i18n="settings">⚙ 設定</button>
+      </div>
+    </header>
+    <aside id="settings" class="settings" aria-label="設定" data-i18n-aria="settingsPanel" hidden>
+      <button id="settings-close" class="settings-close" type="button" aria-label="設定を閉じる" data-i18n-aria="settingsClose">×</button>
+      <section data-section="sound">
+        <h2 data-i18n="sec.sound">音</h2>
+        <label><span data-i18n="scale">スケール</span> <select id="scale"></select></label>
+        <label><span data-i18n="root">主音</span> <select id="root"></select></label>
+        <label>
+          <span data-i18n="register">音域</span>
+          <span class="range"><input id="register" type="range" min="1" max="5" step="1" /><output id="register-value"></output></span>
+        </label>
+        <label>
+          <span data-i18n="density">密度</span>
+          <span class="range"><input id="density" type="range" min="1" max="5" step="1" /><output id="density-value"></output></span>
+        </label>
+        <p class="credit">
+          <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">Piano: Salamander Grand Piano by Alexander Holm (CC BY 3.0)</a>
+        </p>
+      </section>
+      <section data-section="repeat">
+        <h2 data-i18n="sec.repeat">反復</h2>
+        <label>
+          <span data-i18n="tempo">テンポ</span>
+          <span class="range"><input id="tempo" type="range" min="80" max="200" step="4" value="132" /><output id="tempo-value"></output></span>
+        </label>
+      </section>
+      <section data-section="weather">
+        <h2 data-i18n="sec.weather">天気</h2>
+        <label><span data-i18n="useWeather">天気を使う</span> <input id="weather" type="checkbox" /></label>
+        <label><span data-i18n="place">場所</span> <select id="place"></select></label>
+        <p class="credit"><a href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a></p>
+      </section>
+      <section data-section="drift">
+        <h2 data-i18n="sec.drift">変化</h2>
+        <label><span data-i18n="driftOn">ゆっくり変化させる</span> <input id="drift" type="checkbox" /></label>
+        <label>
+          <span data-i18n="driftSpeed">速さ</span>
+          <select id="drift-speed">
+            <option value="1">×1</option>
+            <option value="10">×10</option>
+            <option value="60">×60</option>
+          </select>
+        </label>
+      </section>
+    </aside>
+    <footer class="status-line">
+      <span id="weather-status"></span>
+      <span id="drift-status"></span>
+    </footer>
+    <canvas id="canvas"></canvas>
+    <p id="hint" class="hint" data-i18n="hint.sonata">
+      クリックすると、ソナタが I 楽章から始まります。3 つの楽章が続けて鳴り、III が終わるとソナタも終わります<br />
+      演奏中にクリックすると、その高さの音が音楽に加わります
+    </p>
+    <script type="module" src="/src/sonata/main.ts"></script>
+  </body>
+</html>
