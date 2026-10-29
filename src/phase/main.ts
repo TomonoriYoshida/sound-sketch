@@ -155,7 +155,8 @@ function plant(x: number, y: number) {
       Tone.getDraw().schedule(() => removeSeed(seed), time);
       return;
     }
-    seed.plays++;
+    // 周を数えるのは減衰がオンのあいだだけ。あとからオンにしても、そこから少しずつ弱くなる
+    if (fadeEl.checked) seed.plays++;
     // 単音モードは 1 周に 1 音。フレーズモードは 1 周の中にフレーズの音を均等に並べる
     const degrees = modeEl.value === "phrase" ? phrase : [0];
     const step = periodOf(seed) / degrees.length;
