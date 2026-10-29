@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import "./style.css";
 import { drawPitchGuides, pitchAt, pitchIndexAt } from "../scales";
+import { steppedRamp } from "../audio";
 import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
 
 // クリックした場所から波紋が広がり、画面の端や他の波紋にぶつかると音が鳴る。
@@ -33,20 +34,10 @@ const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 
-// スケールを変えると、これから鳴る音から切り替わる。
-// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる。
-// 変化: 天気で決まった値を中心に、音域・密度・ベルの明るさ・リバーブが経過時間でゆっくり揺れ、20 分ごとに 5 度上へ転調する
-const page = setupGenerativePage({
-  defaults: { scale: "major-pentatonic", root: "C" },
-  applyParams: (params) => {
-    transport.bpm.rampTo(BPM * params.mood.speed, params.ramp);
-    reverb.wet.rampTo(reverbWet(0.2, params), params.ramp);
-    bell.set({ modulationIndex: 8 * 2 ** params.drift.brightness });
-  },
-});
-const { transport } = page;
-
 // --- 音 ---
+
+const transport = Tone.getTransport();
+transport.bpm.value = BPM;
 
 const reverb = new Tone.Reverb({ decay: 6, wet: 0.45 }).toDestination();
 const delay = new Tone.FeedbackDelay({ delayTime: "8n.", feedback: 0.3, wet: 0.25 }).connect(reverb);
@@ -66,8 +57,20 @@ const bell = new Tone.PolySynth(Tone.FMSynth, {
   modulationEnvelope: { attack: 0.005, decay: 0.5, sustain: 0, release: 0.5 },
 }).connect(delay);
 bell.volume.value = -18;
+const rampBrightness = steppedRamp(8, (modulationIndex) => bell.set({ modulationIndex }));
 
-transport.bpm.value = BPM;
+// スケールを変えると、これから鳴る音から切り替わる。
+// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる。
+// 変化: 天気で決まった値を中心に、音域・密度・ベルの明るさ・リバーブが経過時間でゆっくり揺れ、20 分ごとに 5 度上へ転調する
+// （音を先に作っておく。applyParams は音を参照する）
+const page = setupGenerativePage({
+  defaults: { scale: "major-pentatonic", root: "C" },
+  applyParams: (params) => {
+    transport.bpm.rampTo(BPM * params.mood.speed, params.ramp);
+    reverb.wet.rampTo(reverbWet(0.2, params), params.ramp);
+    rampBrightness(8 * 2 ** params.drift.brightness, params.ramp);
+  },
+});
 
 // 16 分音符ごとの発音数を数え、同時に鳴りすぎないようにする
 const notesByStep = new Map<number, Set<number>>();

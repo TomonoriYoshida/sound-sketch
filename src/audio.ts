@@ -4,3 +4,26 @@ import * as Tone from "tone";
 export function protectOutput() {
   Tone.getDestination().chain(new Tone.Limiter(-3));
 }
+
+const STEP_SECONDS = 0.05;
+
+// PolySynth の声ごとの値（FM の明るさなど）は set でしか変えられず、そのままでは一気に切り替わる。
+// 少しずつ set して、seconds 秒かけて移す関数を返す。前の移動が終わる前に呼ばれたら、今の値から新しい値へ移し直す
+export function steppedRamp(initial: number, apply: (value: number) => void) {
+  let value = initial;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  return (target: number, seconds: number) => {
+    clearInterval(timer);
+    const from = value;
+    const steps = Math.max(1, Math.round(seconds / STEP_SECONDS));
+    let step = 0;
+    const next = () => {
+      step += 1;
+      value = from + ((target - from) * step) / steps;
+      apply(value);
+      if (step >= steps) clearInterval(timer);
+    };
+    if (steps === 1) next();
+    else timer = setInterval(next, STEP_SECONDS * 1000);
+  };
+}

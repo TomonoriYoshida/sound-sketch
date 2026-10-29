@@ -46,17 +46,6 @@ export function setupGenerativePage(options: {
     pitches = visiblePitches(allPitches, registerOffset(registerLevel) + (drift ?? NEUTRAL_DRIFT).register);
   };
 
-  const scalePicker = setupScalePicker(
-    document.querySelector<HTMLSelectElement>("#scale")!,
-    document.querySelector<HTMLSelectElement>("#root")!,
-    options.defaults,
-    (next) => {
-      allPitches = next;
-      updatePitches();
-    },
-  );
-  allPitches = scalePicker.pitches;
-
   let registerLevel = setupLevel(
     document.querySelector<HTMLInputElement>("#register")!,
     document.querySelector<HTMLOutputElement>("#register-value")!,
@@ -72,6 +61,16 @@ export function setupGenerativePage(options: {
     "density",
     (level) => (densityLevel = level),
   );
+  const scalePicker = setupScalePicker(
+    document.querySelector<HTMLSelectElement>("#scale")!,
+    document.querySelector<HTMLSelectElement>("#root")!,
+    options.defaults,
+    (next) => {
+      allPitches = next;
+      updatePitches();
+    },
+  );
+  allPitches = scalePicker.pitches;
   updatePitches();
 
   const apply = (ramp: number) => {
@@ -105,6 +104,7 @@ export function setupGenerativePage(options: {
   );
 
   let started = false;
+  let starting: Promise<void> | null = null;
 
   return {
     transport,
@@ -119,12 +119,23 @@ export function setupGenerativePage(options: {
       (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel),
     started: () => started,
     // 最初の操作で音を出せる状態にし、ヒントを消す
-    async ensureStarted() {
-      if (started) return;
-      started = true;
-      await Tone.start();
-      transport.start();
-      hintEl.classList.add("hidden");
+    // 音を出せなかったとき（ブラウザが許可しないなど）は、次の操作でもう一度試す
+    ensureStarted(): Promise<void> {
+      starting ??= (async () => {
+        try {
+          await Tone.start();
+        } catch (e) {
+          console.warn(e);
+        }
+        if (Tone.getContext().state !== "running") {
+          starting = null;
+          return;
+        }
+        started = true;
+        transport.start();
+        hintEl.classList.add("hidden");
+      })();
+      return starting;
     },
   };
 }

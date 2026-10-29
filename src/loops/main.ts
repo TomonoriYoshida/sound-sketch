@@ -45,19 +45,6 @@ const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 const recordEl = document.querySelector<HTMLButtonElement>("#record")!;
 const recordStatusEl = document.querySelector<HTMLElement>("#record-status")!;
 
-// ループは縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
-// 天気: 気温でループの長さ、風で長さの幅、雨で自動の頻度、雲でリバーブが変わる。長さはこれから置くループから変わる。
-// 変化: 天気で決まった値を中心に、音域・密度・フィルターの明るさ・リバーブが経過時間でゆっくり揺れ、
-// 20 分ごとに 5 度上へ転調する。音域と転調は置いてあるループにも効く
-const page = setupGenerativePage({
-  defaults: { scale: "major-pentatonic", root: "F" },
-  applyParams: (params) => {
-    reverb.wet.rampTo(reverbWet(0.35, params), params.ramp);
-    filter.frequency.rampTo(1800 * 2 ** params.drift.brightness, params.ramp);
-  },
-});
-const { transport } = page;
-
 // --- 音 ---
 
 const reverb = new Tone.Reverb({ decay: 10, wet: 0.6 }).toDestination();
@@ -78,6 +65,20 @@ const phraseSynth = new Tone.PolySynth(Tone.Synth, {
 }).connect(filter);
 phraseSynth.maxPolyphony = 48;
 phraseSynth.volume.value = -14;
+
+// ループは縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
+// 天気: 気温でループの長さ、風で長さの幅、雨で自動の頻度、雲でリバーブが変わる。長さはこれから置くループから変わる。
+// 変化: 天気で決まった値を中心に、音域・密度・フィルターの明るさ・リバーブが経過時間でゆっくり揺れ、
+// 20 分ごとに 5 度上へ転調する。音域と転調は置いてあるループにも効く
+// （音を先に作っておく。applyParams は音を参照する）
+const page = setupGenerativePage({
+  defaults: { scale: "major-pentatonic", root: "F" },
+  applyParams: (params) => {
+    reverb.wet.rampTo(reverbWet(0.35, params), params.ramp);
+    filter.frequency.rampTo(1800 * 2 ** params.drift.brightness, params.ramp);
+  },
+});
+const { transport } = page;
 
 // --- ループ ---
 

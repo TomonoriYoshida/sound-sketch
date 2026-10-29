@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
 import { drawPitchGuides, pitchAt, pitchIndexAt } from "../scales";
+import { steppedRamp } from "../audio";
 import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
 
 // 置いた音が、それぞれ少しずつ違う周期でループする。
@@ -34,21 +35,6 @@ const phraseTempoValueEl = document.querySelector<HTMLOutputElement>("#phrase-te
 const autoEl = document.querySelector<HTMLInputElement>("#auto")!;
 const clearEl = document.querySelector<HTMLButtonElement>("#clear")!;
 
-// 種は縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
-// そのためスケールを変えると、置いてある種もその場で新しいスケールの音に置き換わる。
-// 天気: 気温で周期の長さ、風で周期の幅（ずれの速さ）、雨で自動の頻度、雲でリバーブが変わる。
-// 周期はこれから置く種から変わり、置いてある種はそのまま。
-// 変化: 天気で決まった値を中心に、音域・密度・FM の明るさ・リバーブが経過時間でゆっくり揺れ、
-// 20 分ごとに 5 度上へ転調する。音域と転調は置いてある種にも効く
-const page = setupGenerativePage({
-  defaults: { scale: "major-pentatonic", root: "D" },
-  applyParams: (params) => {
-    reverb.wet.rampTo(reverbWet(0.25, params), params.ramp);
-    synth.set({ modulationIndex: 2.5 * 2 ** params.drift.brightness });
-  },
-});
-const { transport } = page;
-
 // --- 音 ---
 
 const reverb = new Tone.Reverb({ decay: 8, wet: 0.5 }).toDestination();
@@ -60,6 +46,23 @@ const synth = new Tone.PolySynth(Tone.FMSynth, {
 }).connect(reverb);
 synth.maxPolyphony = 64; // フレーズモードでは 1 周に複数の音が重なる
 synth.volume.value = -16;
+const rampBrightness = steppedRamp(2.5, (modulationIndex) => synth.set({ modulationIndex }));
+
+// 種は縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
+// そのためスケールを変えると、置いてある種もその場で新しいスケールの音に置き換わる。
+// 天気: 気温で周期の長さ、風で周期の幅（ずれの速さ）、雨で自動の頻度、雲でリバーブが変わる。
+// 周期はこれから置く種から変わり、置いてある種はそのまま。
+// 変化: 天気で決まった値を中心に、音域・密度・FM の明るさ・リバーブが経過時間でゆっくり揺れ、
+// 20 分ごとに 5 度上へ転調する。音域と転調は置いてある種にも効く
+// （音を先に作っておく。applyParams は音を参照する）
+const page = setupGenerativePage({
+  defaults: { scale: "major-pentatonic", root: "D" },
+  applyParams: (params) => {
+    reverb.wet.rampTo(reverbWet(0.25, params), params.ramp);
+    rampBrightness(2.5 * 2 ** params.drift.brightness, params.ramp);
+  },
+});
+const { transport } = page;
 
 // --- 種 ---
 
