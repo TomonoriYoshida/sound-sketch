@@ -160,21 +160,31 @@ function recordNote(x: number, y: number) {
   rec.notes.push({ offset: now - rec.start, y });
   rec.points.push({ x, y });
   phraseSynth.triggerAttackRelease(pitchAtY(y).freq, PHRASE_NOTE_LENGTH, now, 0.8);
-  if (rec.notes.length >= MAX_PHRASE_NOTES) stopRecording();
+  if (rec.notes.length >= MAX_PHRASE_NOTES) stopRecording(true);
 }
 
-// 最初の音から停止までの長さでループにする。停止した瞬間に頭へ戻るので、弾いた流れのまま続く
-function stopRecording() {
+// 録音をやめ、ボタンと表示を戻す
+function endRecording(): Recording {
   const rec = recording!;
   recording = null;
   recordEl.dataset.i18n = "record";
   recordEl.textContent = tk("record");
   recordEl.classList.remove("recording");
   recordStatusEl.textContent = "";
+  return rec;
+}
+
+// 最初の音から停止までの長さでループにする。停止した瞬間に頭へ戻るので、弾いた流れのまま続く。
+// 音数がいっぱいになって止まったとき（filled）は、最後の音を弾いた瞬間なので、そのままでは最後の音と次の周の頭の音が重なる。
+// 最後の音のあとに、それまでの音の平均の間隔を空ける
+function stopRecording(filled = false) {
+  const rec = endRecording();
   if (rec.start === null) return;
 
   const elapsed = Tone.now() - rec.start;
-  const period = Math.max(MIN_PHRASE_PERIOD, elapsed);
+  const last = rec.notes[rec.notes.length - 1].offset;
+  const length = filled && rec.notes.length > 1 ? last + last / (rec.notes.length - 1) : elapsed;
+  const period = Math.max(MIN_PHRASE_PERIOD, length);
   addLoop("phrase", rec.x, rec.y, period, rec.notes, period - elapsed);
 }
 
@@ -326,7 +336,9 @@ canvas.addEventListener("pointerdown", async (e) => {
   else place(e.clientX, e.clientY);
 });
 
+// 録音中なら、録音も取り消す（消したあとに「停止」で、消す前に弾いたフレーズが置かれないように）
 clearEl.addEventListener("click", () => {
+  if (recording) endRecording();
   for (const l of [...loops]) removeLoop(l);
   glows = [];
 });
