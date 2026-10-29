@@ -120,7 +120,6 @@ function skyOf(code: number): Sky {
   return "thunder";
 }
 
-
 function moodOf(c: Current): Mood {
   const sky = SKY[skyOf(c.weather_code)];
   return {
@@ -172,11 +171,12 @@ export function setupWeather(
   statusEl: HTMLElement,
   onMood: (mood: Mood | null) => void,
 ) {
-  const hereOption = new Option(t(HERE_NAME), HERE);
-  placeEl.append(hereOption);
   fillGroupedSelect(
     placeEl,
-    Object.entries(CITIES).map(([id, city]) => ({ value: id, group: city.group, name: city.name })),
+    [
+      { value: HERE, name: HERE_NAME },
+      ...Object.entries(CITIES).map(([id, city]) => ({ value: id, group: city.group, name: city.name })),
+    ],
     GROUP_NAMES,
   );
   const placeParam = new URLSearchParams(location.search).get("place");
@@ -198,10 +198,7 @@ export function setupWeather(
     renderStatus();
   };
 
-  onLangChange(() => {
-    hereOption.text = t(HERE_NAME);
-    renderStatus();
-  });
+  onLangChange(renderStatus);
 
   // 取りに行くたびに番号を振り、最新の番号の結果だけを使う。場所を素早く切り替えたときに古い結果が後から届いても、
   // 天気をオフにしたあとに結果や失敗が届いても、無視する

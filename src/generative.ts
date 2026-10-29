@@ -75,7 +75,6 @@ export function setupGenerativePage(options: {
 
   const apply = (ramp: number) => {
     options.applyParams({ mood: weather ?? NEUTRAL_MOOD, drift: drift ?? NEUTRAL_DRIFT, ramp });
-    updatePitches();
   };
 
   setupWeather(
@@ -97,6 +96,7 @@ export function setupGenerativePage(options: {
       apply: (next) => {
         drift = next;
         apply(1);
+        updatePitches(); // 音域は変化でも揺れる（天気では変わらない）
       },
       modulate: () => scalePicker.transposeRoot(7),
       root: scalePicker.root,
@@ -110,10 +110,11 @@ export function setupGenerativePage(options: {
     transport,
     // 画面に割り当てている音高（低い順）
     pitches: () => pitches,
-    // 天気がオンのときだけ値がある
-    weather: () => weather,
+    weatherOn: () => weather !== null,
+    // 天気（オフのときは標準値）
     mood: () => weather ?? NEUTRAL_MOOD,
-    densityLevel: () => densityLevel,
+    // 密度の段階による頻度の倍率
+    densityLevelFactor: () => densityLevelFactor(densityLevel),
     // 自動で置く頻度の倍率
     autoDensity: () =>
       (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel),

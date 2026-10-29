@@ -111,9 +111,9 @@ let flashes: Flash[] = [];
 
 function spawn(x: number, y: number) {
   const maxR = Math.max(Math.hypot(x, y), Math.hypot(width - x, y), Math.hypot(x, height - y), Math.hypot(width - x, height - y));
-  const weather = page.weather();
-  const variance = weather ? 0.3 * weather.spread : 0;
-  const speed = SPEED * page.mood().speed * (1 + (Math.random() * 2 - 1) * variance);
+  const mood = page.mood();
+  const variance = page.weatherOn() ? 0.3 * mood.spread : 0;
+  const speed = SPEED * mood.speed * (1 + (Math.random() * 2 - 1) * variance);
   ripples.push({ id: nextId++, x, y, r: 0, speed, maxR, hue: 180 + Math.random() * 120, edgesHit: new Set(), touched: new Set() });
   if (ripples.length > MAX_RIPPLES) ripples.shift();
 }

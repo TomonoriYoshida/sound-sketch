@@ -2,7 +2,6 @@ import * as Tone from "tone";
 import "../ripples/style.css";
 import { drawPitchGuides, pitchAt, pitchIndexAt } from "../scales";
 import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
-import { densityLevelFactor } from "../levels";
 import { getLang, tk } from "../i18n";
 
 // 長さが大きく違うテープループを重ねる（イーノ『Music for Airports』の手法）。
@@ -104,7 +103,7 @@ function periodAt(x: number): number {
 
 // 密度が高いほど、自動で置くループの上限を増やす（4〜10 本）
 function autoMaxLoops(): number {
-  return Math.min(MAX_LOOPS, Math.round(AUTO_MAX_LOOPS * Math.sqrt(densityLevelFactor(page.densityLevel()))));
+  return Math.min(MAX_LOOPS, Math.round(AUTO_MAX_LOOPS * Math.sqrt(page.densityLevelFactor())));
 }
 
 function ringRadius(l: TapeLoop): number {
