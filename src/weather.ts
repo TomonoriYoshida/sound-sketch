@@ -98,6 +98,7 @@ const CITIES: Record<string, Place & { group: string }> = {
   auckland: { group: "オセアニア", name: { ja: "オークランド", en: "Auckland" }, latitude: -36.85, longitude: 174.76 },
 };
 const REFRESH_MS = 15 * 60 * 1000;
+const RETRY_MS = 60 * 1000; // 取得に失敗したときは、早めに取り直す
 
 const SKY: Record<Sky, { icon: string; scale: (temp: number) => string }> = {
   clear: { icon: "☀", scale: (temp) => (temp >= 20 ? "ryukyu" : "lydian") },
@@ -163,7 +164,7 @@ async function fetchCurrent(place: Place): Promise<Current> {
   return (await res.json()).current;
 }
 
-// 天気スイッチがオンの間、15 分ごとに天気を取り直して onMood に渡す。オフにすると null を渡す。
+// 天気スイッチがオンの間、15 分ごと（取得に失敗したときは 1 分後）に天気を取り直して onMood に渡す。オフにすると null を渡す。
 // 場所の選択は URL (?place=…) に残し、ページを移っても引き継ぐ
 export function setupWeather(
   toggleEl: HTMLInputElement,
@@ -204,9 +205,11 @@ export function setupWeather(
   // 天気をオフにしたあとに結果や失敗が届いても、無視する
   let latestRequest = 0;
 
+  // 取れたら 15 分後、失敗したら 1 分後に、次を取りに行く
   const refresh = async () => {
     const request = ++latestRequest;
     const isCurrent = () => request === latestRequest && toggleEl.checked;
+    clearTimeout(timer);
     setStatus({ kind: "text", text: LOADING });
     try {
       const p = placeEl.value === HERE ? await (here ??= locate()) : CITIES[placeEl.value];
@@ -215,8 +218,11 @@ export function setupWeather(
       const mood = moodOf(c);
       setStatus({ kind: "weather", place: p, mood, c });
       onMood(mood);
+      timer = setTimeout(refresh, REFRESH_MS);
     } catch {
-      if (isCurrent()) setStatus({ kind: "text", text: FAILED });
+      if (!isCurrent()) return;
+      setStatus({ kind: "text", text: FAILED });
+      timer = setTimeout(refresh, RETRY_MS);
     }
   };
 
@@ -230,10 +236,9 @@ export function setupWeather(
   });
 
   toggleEl.addEventListener("change", () => {
-    clearInterval(timer);
+    clearTimeout(timer);
     if (toggleEl.checked) {
       refresh();
-      timer = setInterval(refresh, REFRESH_MS);
     } else {
       latestRequest++;
       setStatus({ kind: "none" });
