@@ -2,19 +2,16 @@ import * as Tone from "tone";
 import "../ripples/style.css";
 import { drawPitchGuides } from "../scales";
 import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
-import { type L, onLangChange, t } from "../i18n";
+import { onLangChange, t } from "../i18n";
+import { eno } from "./eno";
 import { ichiyanagi } from "./ichiyanagi";
 import { reich } from "./reich";
 import type { MovementContext, MovementRun, Sonata } from "./movement";
 
 // 作曲家ごとに独立したピアノソナタ（3 楽章）。作曲家を選ぶと、I → II → III がその作曲家の作り方で続けて鳴り、
-// III が終わるとソナタも終わる。楽章は自分の流れ（始まり・盛り上がり・終わり）を持つ。
-// まだ作っていない作曲家は「準備中」として選べないようにしておく
+// III が終わるとソナタも終わる。楽章は自分の流れ（始まり・盛り上がり・終わり）を持つ
 
-const SONATAS: Sonata[] = [ichiyanagi, reich];
-const COMING: { id: string; composer: L }[] = [
-  { id: "eno", composer: { ja: "ブライアン・イーノ", en: "Brian Eno" } },
-];
+const SONATAS: Sonata[] = [ichiyanagi, reich, eno];
 const GAP_BETWEEN = 4; // 楽章のあいだの沈黙（秒）
 
 // 試すとき用: ?short を付けると、どの楽章も 5 分の 1 の長さになる（終わり方をすぐ確かめられる）
@@ -76,14 +73,7 @@ let sonata = SONATAS[0];
 
 function fillSelects() {
   const composer = composerEl.value || sonata.id;
-  composerEl.replaceChildren(
-    ...SONATAS.map((s) => new Option(t(s.composer), s.id)),
-    ...COMING.map((c) => {
-      const option = new Option(`${t(c.composer)} ${t({ ja: "（準備中）", en: "(coming)" })}`, c.id);
-      option.disabled = true;
-      return option;
-    }),
-  );
+  composerEl.replaceChildren(...SONATAS.map((s) => new Option(t(s.composer), s.id)));
   composerEl.value = composer;
   const movement = movementEl.value || "0";
   movementEl.replaceChildren(...sonata.movements.map((m, i) => new Option(t(m.title), String(i))));
