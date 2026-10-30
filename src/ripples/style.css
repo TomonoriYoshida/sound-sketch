@@ -173,6 +173,10 @@ canvas {
   cursor: pointer;
 }
 
+.settings label[hidden] {
+  display: none;
+}
+
 /* 名前は左、操作する部品は右に寄せる。「?」のバッジは部品のすぐ右に並ぶ */
 .settings label > select,
 .settings label > input,

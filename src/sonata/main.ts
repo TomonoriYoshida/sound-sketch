@@ -4,8 +4,10 @@ import { drawPitchGuides } from "../scales";
 import { reverbWet, setupCanvas, setupGenerativePage, type SoundParams } from "../generative";
 import { onLangChange, t } from "../i18n";
 import { setupLevel } from "../levels";
+import { syncNavQuery } from "../nav";
 import { eno } from "./eno";
 import { ichiyanagi } from "./ichiyanagi";
+import { nancarrow } from "./nancarrow";
 import { paert } from "./paert";
 import { reich } from "./reich";
 import type { MovementContext, MovementRun, Sonata } from "./movement";
@@ -13,7 +15,7 @@ import type { MovementContext, MovementRun, Sonata } from "./movement";
 // 作曲家ごとに独立したピアノソナタ（3 楽章）。作曲家を選ぶと、I → II → III がその作曲家の作り方で続けて鳴り、
 // III が終わるとソナタも終わる。楽章は自分の流れ（始まり・盛り上がり・終わり）を持つ
 
-const SONATAS: Sonata[] = [ichiyanagi, reich, eno, paert];
+const SONATAS: Sonata[] = [ichiyanagi, reich, eno, paert, nancarrow];
 const GAP_BETWEEN = 4; // 楽章のあいだの沈黙（秒）
 
 // 試すとき用: ?short を付けると、どの楽章も 5 分の 1 の長さになる（終わり方をすぐ確かめられる）
@@ -28,6 +30,7 @@ const reverbEl = document.querySelector<HTMLInputElement>("#reverb")!;
 const reverbValueEl = document.querySelector<HTMLOutputElement>("#reverb-value")!;
 const swayEl = document.querySelector<HTMLInputElement>("#sway")!;
 const swayValueEl = document.querySelector<HTMLOutputElement>("#sway-value")!;
+const tuningEl = document.querySelector<HTMLSelectElement>("#tuning")!;
 const tempoEl = document.querySelector<HTMLInputElement>("#tempo")!;
 const tempoValueEl = document.querySelector<HTMLOutputElement>("#tempo-value")!;
 
@@ -79,6 +82,22 @@ const swayAt = (time: number, freq: number, velocity: number) =>
       SWAY_DEPTH * (0.6 * smoothNoise(time / 1.5) + 0.4 * smoothNoise(time / 6 + 500)) +
       HAND_DEPTH * smoothNoise(time / 1.2 + (freq < SPLIT ? 1000 : 2000)));
 
+// 調律: 鍵ごとに決まった分だけ音程を外す（同じ鍵はいつも同じずれ）。古いピアノでは、1 つの鍵の弦どうしもそろわず、
+// わずかに高い音を重ねてうなりを出す（酒場のピアノのような響き）。ずれはセント（半音の 100 分の 1）
+const TUNINGS: Record<string, { spread: number; unison: number }> = {
+  exact: { spread: 0, unison: 0 },
+  loose: { spread: 8, unison: 0 },
+  old: { spread: 14, unison: 12 },
+};
+let tuning = TUNINGS.exact;
+const tuningSeed = Math.random() * 1000;
+const keyOffset = (freq: number) => {
+  const key = Math.round(12 * Math.log2(freq / 440) + 69);
+  const x = Math.sin(key * 78.233 + tuningSeed) * 43758.5453;
+  return (x - Math.floor(x)) * 2 - 1;
+};
+const cents = (freq: number, amount: number) => freq * 2 ** (amount / 1200);
+
 type Strike = { freq: number; seconds: number; at: number; velocity?: number };
 
 // 楽章が指定した音の長さに、空模様による倍率を掛け、時刻に揺らぎを足して鳴らす（雨で短く、雪で長く）。
@@ -111,7 +130,16 @@ class Piano extends Tone.Sampler {
     for (const chord of chords) {
       chord.sort((a, b) => a.freq - b.freq);
       const roll = swayFactor * ROLL * (0.7 + 0.6 * Math.random());
-      chord.forEach((s, i) => super.triggerAttackRelease(s.freq, s.seconds, s.at + swayAt(s.at, s.freq, s.velocity ?? 1) + i * roll, s.velocity));
+      chord.forEach((s, i) => {
+        const at = s.at + swayAt(s.at, s.freq, s.velocity ?? 1) + i * roll;
+        const freq = cents(s.freq, tuning.spread * keyOffset(s.freq));
+        const velocity = s.velocity ?? 1;
+        if (tuning.unison === 0) super.triggerAttackRelease(freq, s.seconds, at, velocity);
+        else {
+          super.triggerAttackRelease(freq, s.seconds, at, velocity * 0.85);
+          super.triggerAttackRelease(cents(freq, tuning.unison), s.seconds, at, velocity * 0.6);
+        }
+      });
     }
   }
 }
@@ -153,6 +181,21 @@ const { transport } = page;
 
 const swayLevel = setupLevel(swayEl, swayValueEl, "sway", (level) => (swayFactor = SWAY_FACTORS[level - 1]));
 swayFactor = SWAY_FACTORS[swayLevel - 1];
+
+// 調律の選択は、ほかの設定と同じく URL (?tuning=…) に残す。選べるのは tunable の作曲家だけで、
+// ほかの作曲家では設定を隠し、ぴったりで鳴らす（選んだ値は残しておき、戻ったときに使う）
+const tuningFromUrl = new URLSearchParams(location.search).get("tuning");
+if (tuningFromUrl && tuningFromUrl in TUNINGS) tuningEl.value = tuningFromUrl;
+const applyTuning = () => {
+  tuningEl.closest("label")!.hidden = !sonata.tunable;
+  tuning = sonata.tunable ? (TUNINGS[tuningEl.value] ?? TUNINGS.exact) : TUNINGS.exact;
+  const url = new URL(location.href);
+  url.searchParams.set("tuning", tuningEl.value);
+  history.replaceState(null, "", url);
+  syncNavQuery();
+};
+tuningEl.addEventListener("change", applyTuning);
+applyTuning();
 
 tempoEl.addEventListener("input", () => (tempoValueEl.value = tempoEl.value));
 tempoValueEl.value = tempoEl.value;
@@ -229,6 +272,7 @@ composerEl.addEventListener("change", () => {
   movementEl.value = "0";
   fillSelects();
   page.refreshScale();
+  applyTuning();
   if (playing()) request(0);
 });
 movementEl.addEventListener("change", () => {
