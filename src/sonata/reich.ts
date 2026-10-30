@@ -394,5 +394,7 @@ const buildUp: Movement = {
 export const reich: Sonata = {
   id: "reich",
   composer: { ja: "スティーヴ・ライヒ", en: "Steve Reich" },
+  // 長調とも短調ともつかない、教会旋法の響き
+  scale: { id: "dorian", group: "", name: { ja: "ドリアン", en: "Dorian" }, steps: [0, 2, 3, 5, 7, 9, 10] },
   movements: [phase, pulses, buildUp],
 };

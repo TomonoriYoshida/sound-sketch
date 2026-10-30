@@ -6,7 +6,7 @@ import { setupHelp } from "./help";
 import { setupI18n } from "./i18n";
 import { densityLevelFactor, registerOffset, setupLevel } from "./levels";
 import { clamp01 } from "./math";
-import { type Pitch, setupScalePicker, visiblePitches } from "./scales";
+import { type FreeScale, type Pitch, setupScalePicker, visiblePitches } from "./scales";
 import { type Mood, NEUTRAL_MOOD, setupWeather } from "./weather";
 
 // Ripples / Phase / Loops に共通の土台。
@@ -14,7 +14,7 @@ import { type Mood, NEUTRAL_MOOD, setupWeather } from "./weather";
 // 音域は「段階 + 変化の揺れ」、自動で置く頻度は「天気 × 変化 × 密度の段階」で決まる
 
 export type SoundParams = {
-  mood: Omit<Mood, "scaleId" | "icon">; // 天気（オフのときは標準値）
+  mood: Omit<Mood, "icon">; // 天気（オフのときは標準値）
   drift: Drift; // 変化（オフのときは標準値）
   ramp: number; // 値を移す時間 (秒)
 };
@@ -26,6 +26,7 @@ export function reverbWet(base: number, { mood, drift }: SoundParams): number {
 
 export function setupGenerativePage(options: {
   defaults: { scale: string; root: string };
+  freeScale?: FreeScale; // スケールの先頭に足す「指定しない」の選択肢
   // 天気・変化の値が変わったときに、ページ固有の音に反映する
   applyParams: (params: SoundParams) => void;
 }) {
@@ -69,6 +70,7 @@ export function setupGenerativePage(options: {
       allPitches = next;
       updatePitches();
     },
+    options.freeScale,
   );
   allPitches = scalePicker.pitches;
   updatePitches();
@@ -84,7 +86,6 @@ export function setupGenerativePage(options: {
     (next) => {
       weather = next;
       apply(4);
-      if (next) scalePicker.setScale(next.scaleId);
     },
   );
 
@@ -150,6 +151,8 @@ export function setupGenerativePage(options: {
     // 自動で置く頻度の倍率
     autoDensity: () =>
       (weather ?? NEUTRAL_MOOD).density * densityFactor(drift ?? NEUTRAL_DRIFT) * densityLevelFactor(densityLevel),
+    // 「指定しない」の音階が変わったときに、音高を作り直す
+    refreshScale: scalePicker.refresh,
     started: () => started,
     ensureStarted,
   };

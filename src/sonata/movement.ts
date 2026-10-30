@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import type { L } from "../i18n";
-import type { Pitch } from "../scales";
+import type { Pitch, Scale } from "../scales";
 
 // ソナタの楽章に共通の形。楽章は始まりから終わりまでの流れを自分で持ち、終わったら finished() が true になる。
 // ページ（main.ts）は、終わった楽章を止めて次の楽章を始め、III が終わったらソナタを終える
@@ -26,7 +26,8 @@ export type Movement = {
   start: (ctx: MovementContext) => MovementRun;
 };
 
-export type Sonata = { id: string; composer: L; movements: Movement[] };
+// scale は、設定のスケールで「指定しない」を選んだときに使う、その作曲家の音階
+export type Sonata = { id: string; composer: L; scale: Scale; movements: Movement[] };
 
 export const MARGIN_LEFT = 56;
 export const MARGIN_RIGHT = 24;

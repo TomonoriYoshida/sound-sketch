@@ -65,8 +65,11 @@ const phraseSynth = new Tone.PolySynth(Tone.Synth, {
 phraseSynth.maxPolyphony = 48;
 phraseSynth.volume.value = -14;
 
+let sustain = 1; // 1 音の長さの倍率（空模様で変わる）
+
 // ループは縦位置だけを持ち、鳴るたびに今のスケールで音を決める。
-// 天気: 気温でループの長さ、風で長さの幅、雨で自動の頻度、雲でリバーブが変わる。長さはこれから置くループから変わる。
+// 天気: 空模様でフィルターの明るさと 1 音の長さ、気温でループの長さ、風で長さの幅、雨で自動の頻度、雲でリバーブが変わる。
+// ループの長さはこれから置くループから変わる。
 // 変化: 天気で決まった値を中心に、音域・密度・フィルターの明るさ・リバーブが経過時間でゆっくり揺れ、
 // 20 分ごとに 5 度上へ転調する。音域と転調は置いてあるループにも効く
 // （音を先に作っておく。applyParams は音を参照する）
@@ -74,7 +77,8 @@ const page = setupGenerativePage({
   defaults: { scale: "major-pentatonic", root: "F" },
   applyParams: (params) => {
     reverb.wet.rampTo(reverbWet(0.35, params), params.ramp);
-    filter.frequency.rampTo(1800 * 2 ** params.drift.brightness, params.ramp);
+    filter.frequency.rampTo(1800 * 2 ** (params.drift.brightness + params.mood.brightness), params.ramp);
+    sustain = params.mood.sustain;
   },
 });
 const { transport } = page;
@@ -124,8 +128,8 @@ function addLoop(kind: TapeLoop["kind"], x: number, y: number, period: number, n
   l.voices = notes.map((n) =>
     new Tone.Loop((time) => {
       const freq = pitchAtY(n.y).freq;
-      if (kind === "note") synth.triggerAttackRelease(freq, NOTE_LENGTH, time, 0.6 + Math.random() * 0.3);
-      else phraseSynth.triggerAttackRelease(freq, PHRASE_NOTE_LENGTH, time, 0.6 + Math.random() * 0.2);
+      if (kind === "note") synth.triggerAttackRelease(freq, NOTE_LENGTH * sustain, time, 0.6 + Math.random() * 0.3);
+      else phraseSynth.triggerAttackRelease(freq, PHRASE_NOTE_LENGTH * sustain, time, 0.6 + Math.random() * 0.2);
       Tone.getDraw().schedule(() => glows.push({ loop: l, offset: n.offset, life: 1 }), time);
     }, period).start(start + n.offset),
   );
@@ -159,7 +163,7 @@ function recordNote(x: number, y: number) {
   }
   rec.notes.push({ offset: now - rec.start, y });
   rec.points.push({ x, y });
-  phraseSynth.triggerAttackRelease(pitchAtY(y).freq, PHRASE_NOTE_LENGTH, now, 0.8);
+  phraseSynth.triggerAttackRelease(pitchAtY(y).freq, PHRASE_NOTE_LENGTH * sustain, now, 0.8);
   if (rec.notes.length >= MAX_PHRASE_NOTES) stopRecording(true);
 }
 

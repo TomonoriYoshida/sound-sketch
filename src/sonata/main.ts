@@ -40,18 +40,30 @@ for (let octave = 1; octave <= 7; octave++)
 
 const reverb = new Tone.Reverb({ decay: 3.5, wet: 0.15 }).toDestination();
 const filter = new Tone.Filter({ type: "lowpass", frequency: 6000, rolloff: -12 }).connect(reverb);
-const piano = new Tone.Sampler({ urls, baseUrl: `${import.meta.env.BASE_URL}samples/piano/`, release: 0.6 }).connect(filter);
+// 楽章が指定した音の長さに、空模様による倍率を掛けて鳴らす（雨で短く、雪で長く）
+let sustain = 1;
+class Piano extends Tone.Sampler {
+  triggerAttackRelease(...[notes, duration, time, velocity]: Parameters<Tone.Sampler["triggerAttackRelease"]>) {
+    const seconds = Array.isArray(duration) ? duration.map((d) => Tone.Time(d).toSeconds() * sustain) : Tone.Time(duration).toSeconds() * sustain;
+    return super.triggerAttackRelease(notes, seconds, time, velocity);
+  }
+}
+const piano = new Piano({ urls, baseUrl: `${import.meta.env.BASE_URL}samples/piano/`, release: 0.6 }).connect(filter);
 piano.volume.value = -4;
 
-// 天気: 気温で速い楽章のテンポ、雨（と密度）で音の変わる頻度、雲でリバーブが変わる。
+// 天気: 空模様で音色の明るさと音の長さ、気温で刻みのある楽章のテンポ、雨（と密度）で音の変わる頻度、雲でリバーブが変わる。
 // 変化: 天気で決まった値を中心に、音域・音色の明るさ・リバーブがゆっくり揺れ、20 分ごとに 5 度上へ転調する
 let speed = 1;
+// スケールで「指定しない」を選ぶと、今の作曲家の音階を使う（作曲家を変えると音階も変わる）
+let sonata = SONATAS[0];
 const page = setupGenerativePage({
   defaults: { scale: "ritsu", root: "D" },
+  freeScale: { id: "composer", name: { ja: "指定しない（作曲家にまかせる）", en: "None (composer's choice)" }, scale: () => sonata.scale },
   applyParams: (params) => {
     reverb.wet.rampTo(reverbWet(0.05, params), params.ramp);
-    filter.frequency.rampTo(6000 * 2 ** params.drift.brightness, params.ramp);
+    filter.frequency.rampTo(6000 * 2 ** (params.drift.brightness + params.mood.brightness), params.ramp);
     speed = params.mood.speed;
+    sustain = params.mood.sustain;
   },
 });
 const { transport } = page;
@@ -69,12 +81,11 @@ const context: MovementContext = {
 
 // --- 作曲家と楽章 ---
 
-let sonata = SONATAS[0];
-
+// 選択の表示は、いま鳴らしているソナタ（sonata）に合わせる。
+// ブラウザが再読み込みや「戻る」で選択だけを前の値に戻すことがあるので、autocomplete="off" でも防いでいる
 function fillSelects() {
-  const composer = composerEl.value || sonata.id;
   composerEl.replaceChildren(...SONATAS.map((s) => new Option(t(s.composer), s.id)));
-  composerEl.value = composer;
+  composerEl.value = sonata.id;
   const movement = movementEl.value || "0";
   movementEl.replaceChildren(...sonata.movements.map((m, i) => new Option(t(m.title), String(i))));
   movementEl.value = movement;
@@ -100,19 +111,57 @@ function startMovement(i: number) {
   ended = false;
 }
 
+// 鳴らすよう頼まれた楽章。音を出せる状態になり、ピアノの録音を読み終えたところで始める（null なら頼まれていない）。
+// iPhone では、触れた瞬間でなく指を離したときに音を出せるようになるなど、頼んだ時点ではまだ始められないことがある
+let requested: number | null = null;
+let pianoReady = false;
+Tone.loaded().then(
+  () => (pianoReady = true),
+  (e) => {
+    console.warn(e); // 読めなかった録音があっても、読めた録音で鳴らす（近い録音の速さを変えて作る）
+    pianoReady = true;
+  },
+);
+
+function request(i: number) {
+  requested = i;
+  movementEl.value = String(i);
+  void page.ensureStarted();
+}
+// 始める前は選ぶだけ。鳴っている（または頼まれている）ときは、選んだところから鳴らし直す
+const playing = () => run !== null || requested !== null || nextAt !== Infinity || ended;
+
 composerEl.addEventListener("change", () => {
   sonata = SONATAS.find((s) => s.id === composerEl.value) ?? SONATAS[0];
   movementEl.value = "0";
   fillSelects();
-  if (page.started()) startMovement(0);
+  page.refreshScale();
+  if (playing()) request(0);
 });
 movementEl.addEventListener("change", () => {
-  if (page.started()) startMovement(Number(movementEl.value));
+  if (playing()) request(Number(movementEl.value));
 });
 restartEl.addEventListener("click", () => {
-  if (page.started()) startMovement(0);
+  if (playing()) request(0);
   else movementEl.value = "0";
 });
+
+// 楽章の始まり・終わりと、次の楽章への移り。requestAnimationFrame は画面が隠れていると止まるので、音の時計で見張る
+page.transport.scheduleRepeat(() => {
+  if (requested !== null && page.started() && pianoReady) {
+    const i = requested;
+    requested = null;
+    startMovement(i);
+    return;
+  }
+  if (run?.finished()) {
+    run.stop();
+    run = null;
+    if (index < sonata.movements.length - 1) nextAt = Tone.now() + GAP_BETWEEN;
+    else ended = true;
+  }
+  if (!run && requested === null && Tone.now() >= nextAt) startMovement(index + 1);
+}, 0.25);
 
 // --- 画面 ---
 
@@ -136,7 +185,9 @@ function draw() {
   g.textAlign = "right";
   g.fillStyle = "rgba(255, 255, 255, 0.55)";
   const movement = sonata.movements[index];
-  const status = ended
+  const status = requested !== null
+    ? t({ ja: "準備中…", en: "Getting ready…" })
+    : ended
     ? t({ ja: "終わり — クリックでもう一度", en: "Fine — click to play again" })
     : run
       ? `${clock(Tone.now() - startedAt)} / ${clock(movement.duration)}`
@@ -145,39 +196,20 @@ function draw() {
 }
 
 function frame() {
-  if (run?.finished()) {
-    run.stop();
-    run = null;
-    if (index < sonata.movements.length - 1) nextAt = Tone.now() + GAP_BETWEEN;
-    else ended = true;
-  }
-  if (!run && Tone.now() >= nextAt) startMovement(index + 1);
-
   draw();
   requestAnimationFrame(frame);
 }
 
-// 最初の操作で、ピアノの録音を読み込み終えてから、選んでいる楽章を始める。終わったあとのクリックは、I から始め直す
-let loading = false;
-
-canvas.addEventListener("pointerdown", async (e) => {
+// 最初のクリックで、選んでいる楽章を頼む。終わったあとのクリックは、I から始め直す
+canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
   if (run) {
     run.pointer(e.clientX, e.clientY, height);
     return;
   }
-  if (ended) {
-    startMovement(0);
-    return;
-  }
-  if (loading || nextAt !== Infinity) return;
-  loading = true;
-  await page.ensureStarted();
-  if (page.started()) {
-    await Tone.loaded();
-    startMovement(Number(movementEl.value));
-  }
-  loading = false;
+  if (ended) request(0);
+  else if (requested === null && nextAt === Infinity) request(Number(movementEl.value));
+  else void page.ensureStarted(); // 頼んであるが、まだ音を出せていない
 });
 
 requestAnimationFrame(frame);

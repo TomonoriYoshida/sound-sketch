@@ -4,11 +4,12 @@ import { fillGroupedSelect } from "./select";
 import { getLang, type L, onLangChange, t } from "./i18n";
 
 // Open-Meteo（API キー不要）から現在地の天気を取り、音のパラメータに変換する。
-// 天気 → スケール、気温 → 速さ、降水量 → 密度、風速 → ばらつき、雲量 → リバーブの深さ
+// 空模様 → 音色の明るさと音の長さ、気温 → 速さ、降水量 → 密度、風速 → ばらつき、雲量 → リバーブの深さ
 
 export type Mood = {
-  scaleId: string;
   icon: string;
+  brightness: number; // 音色の明るさ（オクターブ単位のずれ）。0 が標準、晴れで明るく、雨や雪でこもる
+  sustain: number; // 音の長さの倍率。1 が標準、雨や雷で短く、雪で長い
   speed: number; // 0.75（寒い）〜1.25（暑い）。1 が標準
   density: number; // 1（降水なし）〜4（強い雨）
   spread: number; // 0（無風）〜1（強風）
@@ -16,7 +17,7 @@ export type Mood = {
 };
 
 // 天気をオフにしているときの値。各ページの元の挙動と一致するようにしてある
-export const NEUTRAL_MOOD: Omit<Mood, "scaleId" | "icon"> = { speed: 1, density: 1, spread: 1 / 3, wetness: 0.5 };
+export const NEUTRAL_MOOD: Omit<Mood, "icon"> = { brightness: 0, sustain: 1, speed: 1, density: 1, spread: 1 / 3, wetness: 0.5 };
 
 type Current = {
   temperature_2m: number;
@@ -100,13 +101,14 @@ const CITIES: Record<string, Place & { group: string }> = {
 const REFRESH_MS = 15 * 60 * 1000;
 const RETRY_MS = 60 * 1000; // 取得に失敗したときは、早めに取り直す
 
-const SKY: Record<Sky, { icon: string; scale: (temp: number) => string }> = {
-  clear: { icon: "☀", scale: (temp) => (temp >= 20 ? "ryukyu" : "lydian") },
-  cloudy: { icon: "☁", scale: () => "ritsu" },
-  drizzle: { icon: "☂", scale: () => "minyo" },
-  rain: { icon: "☔", scale: () => "miyako" },
-  snow: { icon: "❄", scale: () => "slendro" },
-  thunder: { icon: "⚡", scale: () => "hijaz" },
+// 空模様ごとの音色の明るさと音の長さ。晴れは明るく、雨はしずくのように短く、雪は柔らかくにじむように長く
+const SKY: Record<Sky, { icon: string; brightness: number; sustain: number }> = {
+  clear: { icon: "☀", brightness: 0.4, sustain: 1 },
+  cloudy: { icon: "☁", brightness: -0.2, sustain: 1.2 },
+  drizzle: { icon: "☂", brightness: -0.4, sustain: 0.7 },
+  rain: { icon: "☔", brightness: -0.6, sustain: 0.6 },
+  snow: { icon: "❄", brightness: -0.8, sustain: 1.8 },
+  thunder: { icon: "⚡", brightness: -0.7, sustain: 0.6 },
 };
 
 // WMO の天気コードを大まかな空模様に分ける
@@ -124,8 +126,9 @@ function skyOf(code: number): Sky {
 function moodOf(c: Current): Mood {
   const sky = SKY[skyOf(c.weather_code)];
   return {
-    scaleId: sky.scale(c.temperature_2m),
     icon: sky.icon,
+    brightness: sky.brightness,
+    sustain: sky.sustain,
     speed: 0.75 + 0.5 * clamp01((c.temperature_2m + 5) / 40),
     density: 1 + Math.min(c.precipitation, 6) * 0.5,
     spread: clamp01(c.wind_speed_10m / 30),

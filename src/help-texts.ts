@@ -83,8 +83,8 @@ export const HELP_COMMON: Record<string, HelpText> = {
   "#weather": {
     title: { ja: "天気", en: "Weather" },
     text: {
-      ja: "オンにすると、選んだ場所の今の天気で音が変わります。天気でスケール、気温で速さ、雨で音の多さ、風でずれ方、雲で響きの深さが決まります。15 分ごとに更新します。",
-      en: "When on, the current weather at the chosen place shapes the sound: the sky picks the scale, temperature the speed, rain the density, wind the spread and clouds the reverb depth. Updates every 15 minutes.",
+      ja: "オンにすると、選んだ場所の今の天気で音が変わります。空模様で音色の明るさと音の長さ（晴れは明るく、雨は短く、雪は柔らかく長く）、気温で速さ、雨で音の多さ、風でずれ方、雲で響きの深さが決まります。15 分ごとに更新します。",
+      en: "When on, the current weather at the chosen place shapes the sound: the sky sets the brightness and note length (bright when clear, short in rain, soft and long in snow), temperature the speed, rain the density, wind the spread and clouds the reverb depth. Updates every 15 minutes.",
     },
   },
   "#place": {
@@ -254,6 +254,13 @@ export const HELP_BY_PAGE: Record<string, Record<string, HelpText>> = {
       text: {
         ja: "どの作曲家のソナタを鳴らすかです。一柳慧: I. 反復のずれ（両手の長さの違う型がずれていき、頭がそろって終わる）、II. 間（偶然で決めた音と長い沈黙）、III. トッカータ（1 音ずつ伸びる速い旋律が、広がりながら加速する）。スティーヴ・ライヒ: I. フェイズ（両手が同じ型を弾き、片方が 1 音ずつ前へずれて、12 回でまたそろう）、II. 脈動する和音（刻み続ける和音が息の長さでふくらんで消え、少しずつ移って最初の和音に帰る）、III. 積み上げ（休符を 1 つずつ音に置き換え、ずらした位置で別の手も同じ型を積み、最後は休符に戻す）。ブライアン・イーノ: I. 長さの違うループ（短い句を長さの違うループに載せて重ね、増えてから減っていく）、II. こだま（置いた音が一定の間で繰り返されながら小さくなり、重なって和音になる）、III. 規則から生まれる旋律（隣の音へ動きやすい、ときどき休む、という規則だけで旋律が生まれ、低い音が支える）。",
         en: "Whose sonata to play. Toshi Ichiyanagi: I. Shifting repetitions (two hands' patterns of different lengths drift apart and end when their starts meet), II. Ma (chance notes and long silences), III. Toccata (a fast line grows one note at a time, widening and speeding up). Steve Reich: I. Phase (both hands play the same pattern; one creeps ahead a note at a time until they meet again after 12 shifts), II. Pulsing chords (repeated chords swell and fade over a breath, moving step by step back to the first chord), III. Build-up (rests become notes one at a time, other hands build the same pattern at an offset, then it thins back to rests). Brian Eno: I. Loops of different lengths (short phrases on loops of different lengths pile up, then thin out), II. Echoes (each note repeats at a fixed interval, fading, and the echoes overlap into chords), III. Melody from rules (simple rules such as moving to a neighbouring note or resting now and then make the melody, over slow low notes).",
+      },
+    },
+    "#scale": {
+      title: { ja: "スケール", en: "Scale" },
+      text: {
+        ja: "音の高さの選び方（音階）です。「指定しない」を選ぶと、作曲家ごとの音階を使います（一柳慧は 12 音すべての半音階、ライヒはドリアン、イーノはメジャーペンタトニック）。ほかに、日本、中国、中近東、インド、バリ島、西洋の音階から選べます。",
+        en: "The set of pitches to use. “None” uses each composer's own scale (chromatic for Ichiyanagi, Dorian for Reich, major pentatonic for Eno). You can also choose scales from Japan, China, the Middle East, India, Bali and the West.",
       },
     },
     "#movement": {

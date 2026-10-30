@@ -60,7 +60,7 @@ bell.volume.value = -18;
 const rampBrightness = steppedRamp(8, (modulationIndex) => bell.set({ modulationIndex }));
 
 // スケールを変えると、これから鳴る音から切り替わる。
-// 天気: 気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる。
+// 天気: 空模様で音色の明るさと響きの長さ、気温でテンポと波紋の速さ、風で波紋ごとの速さのばらつき、雨で自動の頻度、雲でリバーブが変わる。
 // 変化: 天気で決まった値を中心に、音域・密度・ベルの明るさ・リバーブが経過時間でゆっくり揺れ、20 分ごとに 5 度上へ転調する
 // （音を先に作っておく。applyParams は音を参照する）
 const page = setupGenerativePage({
@@ -68,7 +68,10 @@ const page = setupGenerativePage({
   applyParams: (params) => {
     transport.bpm.rampTo(BPM * params.mood.speed, params.ramp);
     reverb.wet.rampTo(reverbWet(0.2, params), params.ramp);
-    rampBrightness(8 * 2 ** params.drift.brightness, params.ramp);
+    rampBrightness(8 * 2 ** (params.drift.brightness + params.mood.brightness), params.ramp);
+    const sustain = params.mood.sustain;
+    pluck.set({ envelope: { decay: 0.4 * sustain, release: 1.2 * sustain } });
+    bell.set({ envelope: { decay: 1.2 * sustain, release: 1.5 * sustain } });
   },
 });
 
