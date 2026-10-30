@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { pitchAt, pitchIndexAt } from "../scales";
-import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, random, type Sonata, yOf } from "./movement";
+import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, random, type Sonata, yOf } from "./movement";
 
 // ブライアン・イーノがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // I.  長さの違うループ: 1〜2 音の短い句を、長さの違うループに載せて重ねる。同じ響きはほとんど二度と来ない
@@ -12,7 +12,7 @@ const TICK = 0.1; // 先読みの幅（秒）。この幅の中に来る音を�
 
 // 音の時計で動く小さな予定表。stop() で、まだ鳴っていない予定ごと止められる
 function scheduler(ctx: MovementContext, tick: (time: number) => void) {
-  return new Tone.Loop((time) => tick(time), TICK).start(ctx.transport.seconds + 0.05);
+  return new Tone.Loop((time) => tick(time), TICK).start(after(ctx.transport, 0.05));
 }
 
 type Pending = { time: number; index: number; velocity: number; seconds: number; octave?: number; onPlay?: () => void };

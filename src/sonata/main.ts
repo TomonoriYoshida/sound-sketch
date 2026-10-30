@@ -40,12 +40,32 @@ for (let octave = 1; octave <= 7; octave++)
 
 const reverb = new Tone.Reverb({ decay: 3.5, wet: 0.15 }).toDestination();
 const filter = new Tone.Filter({ type: "lowpass", frequency: 6000, rolloff: -12 }).connect(reverb);
-// 楽章が指定した音の長さに、空模様による倍率を掛けて鳴らす（雨で短く、雪で長く）
+// 時間の揺らぎ: 1 音ごとのでたらめなずれではなく、ずれ自体がゆっくり変わる（しばらく前のめり、やがてもたる）。
+// 速さの違う 2 つの揺れ（約 1.5 秒と約 6 秒の節目を、なめらかにつなぐ）を重ねる。
+// 音は早めには鳴らせないので、全体を SWAY_BASE だけ遅らせ、その前後 SWAY_DEPTH の中で動かす。
+// 試すとき用: ?nosway を付けると、揺らぎなしで鳴る
+const SWAY_BASE = 0.03;
+const SWAY_DEPTH = new URLSearchParams(location.search).has("nosway") ? 0 : 0.025;
+const swaySeed = Math.random() * 1000;
+// 整数 i ごとに決まる -1〜1 の値（同じ時刻には同じずれになるよう、記憶せずに計算で出す）
+const knot = (i: number) => {
+  const x = Math.sin(i * 12.9898 + swaySeed) * 43758.5453;
+  return (x - Math.floor(x)) * 2 - 1;
+};
+const smoothNoise = (t: number) => {
+  const i = Math.floor(t);
+  const f = (1 - Math.cos((t - i) * Math.PI)) / 2;
+  return knot(i) * (1 - f) + knot(i + 1) * f;
+};
+const swayAt = (time: number) => SWAY_BASE + SWAY_DEPTH * (0.6 * smoothNoise(time / 1.5) + 0.4 * smoothNoise(time / 6 + 500));
+
+// 楽章が指定した音の長さに、空模様による倍率を掛け、時刻に揺らぎを足して鳴らす（雨で短く、雪で長く）
 let sustain = 1;
 class Piano extends Tone.Sampler {
   triggerAttackRelease(...[notes, duration, time, velocity]: Parameters<Tone.Sampler["triggerAttackRelease"]>) {
     const seconds = Array.isArray(duration) ? duration.map((d) => Tone.Time(d).toSeconds() * sustain) : Tone.Time(duration).toSeconds() * sustain;
-    return super.triggerAttackRelease(notes, seconds, time, velocity);
+    const at = time === undefined ? Tone.now() : Tone.Time(time).toSeconds();
+    return super.triggerAttackRelease(notes, seconds, at + swayAt(at), velocity);
   }
 }
 const piano = new Piano({ urls, baseUrl: `${import.meta.env.BASE_URL}samples/piano/`, release: 0.6 }).connect(filter);

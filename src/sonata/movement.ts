@@ -29,6 +29,13 @@ export type Movement = {
 // scale は、設定のスケールで「指定しない」を選んだときに使う、その作曲家の音階
 export type Sonata = { id: string; composer: L; scale: Scale; movements: Movement[] };
 
+// Transport の上で、今から seconds 秒後の位置（ティックで指定する）。
+// transport.seconds + seconds と書くと、Tone.js はその秒を今のテンポで拍に換算する。経過秒はテンポの変化の履歴で
+// 積み上がっているので、テンポを変えてきたあと（一柳慧の III は加速する）では、何分も先の位置になってしまう
+export function after(transport: MovementContext["transport"], seconds: number): string {
+  return `${transport.ticks + Math.round(Tone.Time(seconds).toTicks())}i`;
+}
+
 export const MARGIN_LEFT = 56;
 export const MARGIN_RIGHT = 24;
 

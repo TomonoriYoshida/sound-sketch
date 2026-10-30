@@ -1,7 +1,7 @@
 import * as Tone from "tone";
 import { pitchAt, pitchIndexAt } from "../scales";
 import { t } from "../i18n";
-import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, random, type Sonata, yOf } from "./movement";
+import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, random, type Sonata, yOf } from "./movement";
 
 // スティーヴ・ライヒがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // I.  フェイズ: 両手が同じ 12 音の型を弾き、片方の手だけがほんの少し速くなって 1 音ずつ前へずれ、また重なる。12 回ずれると、元のそろった形に戻る。
@@ -116,7 +116,7 @@ const phase: Movement = {
         }
       } else bNext = step + 1;
       step++;
-    }, "16n").start(transport.seconds + 0.05);
+    }, "16n").start(after(transport, 0.05));
 
     let last = performance.now();
     return {
@@ -248,7 +248,7 @@ const pulses: Movement = {
       // 息の始まりに、低い音を長く置く
       if (within === 0 || pulse === 0) piano.triggerAttackRelease(pitchAt(pitches, Math.max(chord[0] - 5, 0)).freq / 2, breathSeconds(), time, 0.2 + peak * 0.4);
       pulse++;
-    }, "8n").start(transport.seconds + 0.05);
+    }, "8n").start(after(transport, 0.05));
 
     return {
       // クリックした高さの音を、今の和音に足す（次の和音に移るまで）
@@ -373,7 +373,7 @@ const buildUp: Movement = {
       const current = slot;
       Tone.getDraw().schedule(() => (playing = current), time);
       slot = (slot + 1) % SLOTS;
-    }, "8n").start(transport.seconds + 0.05);
+    }, "8n").start(after(transport, 0.05));
 
     let last = performance.now();
     return {

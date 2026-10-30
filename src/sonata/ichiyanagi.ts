@@ -1,7 +1,7 @@
 import * as Tone from "tone";
 import { pitchAt, pitchIndexAt } from "../scales";
 import { t } from "../i18n";
-import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, random, type Sonata, yOf } from "./movement";
+import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, random, type Sonata, yOf } from "./movement";
 
 // 一柳慧がピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // I.  反復のずれ（『ピアノ・メディア』のころ）: 両手が長さの違う短い型を同じ刻みで繰り返し、重なり方がずれていく
@@ -157,7 +157,7 @@ const shifting: Movement = {
         else if (Math.random() < mutateChance(progress)) mutate(hand);
       }
       if (bothAtStart && progress >= LEFT_ENTERS) Tone.getDraw().schedule(() => (aligned = 1), time);
-    }, "16n").start(transport.seconds + 0.05);
+    }, "16n").start(after(transport, 0.05));
 
     const drawHand = (g: CanvasRenderingContext2D, width: number, height: number, hand: Hand, alpha: number) => {
       const count = ctx.pitches().length;
@@ -296,9 +296,9 @@ const silences: Movement = {
         return;
       }
       event(time);
-      scheduled.push(transport.scheduleOnce(next, transport.seconds + gapAfter(progress)));
+      scheduled.push(transport.scheduleOnce(next, after(transport, gapAfter(progress))));
     };
-    scheduled.push(transport.scheduleOnce(next, transport.seconds + 1.5));
+    scheduled.push(transport.scheduleOnce(next, after(transport, 1.5)));
 
     let last = performance.now();
     return {
@@ -429,7 +429,7 @@ const toccata: Movement = {
         melody = [...melody.slice(1), nextNote(progress)];
         glow = [...glow.slice(1), 0];
       }
-    }, "16n").start(transport.seconds + 0.05);
+    }, "16n").start(after(transport, 0.05));
 
     let last = performance.now();
     return {
