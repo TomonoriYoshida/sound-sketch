@@ -263,6 +263,20 @@ export const HELP_BY_PAGE: Record<string, Record<string, HelpText>> = {
         en: "The set of pitches to use. “None” uses each composer's own scale (chromatic for Ichiyanagi, Dorian for Reich, major pentatonic for Eno). You can also choose scales from Japan, China, the Middle East, India, Bali and the West.",
       },
     },
+    "#reverb": {
+      title: { ja: "響き", en: "Reverb" },
+      text: {
+        ja: "リバーブの深さと残響の長さです。1 でほぼ響きなし、3 が標準、5 でホールのように深く長く響きます。天気を使うと雲の量で、変化をオンにすると時間とともに、ここで選んだ響きを中心に深さが揺れます。",
+        en: "Reverb depth and length. 1 is nearly dry, 3 is the default and 5 is deep and long like a hall. With weather on, cloud cover moves the depth around this setting, and Drift sways it over time.",
+      },
+    },
+    "#sway": {
+      title: { ja: "揺らぎ", en: "Sway" },
+      text: {
+        ja: "人が弾くような時間の揺らぎの量です。ずれがゆっくり前のめりになったりもたったりし、右手と左手が少し食い違い、和音は低い音から軽く崩れ、強い音はわずかに早く鳴ります。1 で揺らぎなし（機械のように正確）、3 が標準、5 で 2 倍になります。",
+        en: "How much human timing sway to add. The timing slowly pushes and drags, the hands drift slightly apart, chords roll up from the bass and loud notes land a touch early. 1 is none (machine-exact), 3 is the default and 5 is double.",
+      },
+    },
     "#movement": {
       title: { ja: "楽章", en: "Movement" },
       text: {

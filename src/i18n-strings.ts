@@ -36,6 +36,8 @@ export const STRINGS: Record<string, { ja: string; en: string }> = {
   root: { ja: "主音", en: "Root" },
   register: { ja: "音域", en: "Register" },
   density: { ja: "密度", en: "Density" },
+  sway: { ja: "揺らぎ", en: "Sway" },
+  reverbLevel: { ja: "響き", en: "Reverb" },
   mode: { ja: "種類", en: "Type" },
   "mode.note": { ja: "単音", en: "Single note" },
   "mode.phrase": { ja: "フレーズ", en: "Phrase" },

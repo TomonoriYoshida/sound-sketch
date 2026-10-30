@@ -1,8 +1,9 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
 import { drawPitchGuides } from "../scales";
-import { reverbWet, setupCanvas, setupGenerativePage } from "../generative";
+import { reverbWet, setupCanvas, setupGenerativePage, type SoundParams } from "../generative";
 import { onLangChange, t } from "../i18n";
+import { setupLevel } from "../levels";
 import { eno } from "./eno";
 import { ichiyanagi } from "./ichiyanagi";
 import { reich } from "./reich";
@@ -22,6 +23,10 @@ const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const composerEl = document.querySelector<HTMLSelectElement>("#composer")!;
 const movementEl = document.querySelector<HTMLSelectElement>("#movement")!;
 const restartEl = document.querySelector<HTMLButtonElement>("#restart")!;
+const reverbEl = document.querySelector<HTMLInputElement>("#reverb")!;
+const reverbValueEl = document.querySelector<HTMLOutputElement>("#reverb-value")!;
+const swayEl = document.querySelector<HTMLInputElement>("#sway")!;
+const swayValueEl = document.querySelector<HTMLOutputElement>("#sway-value")!;
 const tempoEl = document.querySelector<HTMLInputElement>("#tempo")!;
 const tempoValueEl = document.querySelector<HTMLOutputElement>("#tempo-value")!;
 
@@ -45,14 +50,15 @@ const filter = new Tone.Filter({ type: "lowpass", frequency: 6000, rolloff: -12 
 // - 手の揺れ: 右手と左手（真ん中の C で分ける）が、それぞれ別にゆっくり揺れ、両手が重なる所がぴったりそろわない
 // - 和音の崩し: 同時に鳴る音は、低い音から順に少しずつ遅らせる
 // - 強さと時間: 強い音はほんの少し早く、弱い音は少し遅く（強さ 0.5 を境に、最大 ±VELOCITY_DEPTH）
-// 音は早めには鳴らせないので、全体を SWAY_BASE だけ遅らせ、その前後で動かす。
-// 試すとき用: ?nosway を付けると、揺らぎなしで鳴る
-const SWAY = !new URLSearchParams(location.search).has("nosway");
-const SWAY_BASE = 0.05;
-const SWAY_DEPTH = SWAY ? 0.025 : 0;
-const HAND_DEPTH = SWAY ? 0.012 : 0;
-const VELOCITY_DEPTH = SWAY ? 0.012 : 0;
-const ROLL = SWAY ? 0.01 : 0; // 和音で、1 音ごとに遅らせる長さ（秒。少し揺らす）
+// 揺らぎの量は設定の「揺らぎ」（1〜5）で決まり、下の長さはすべて 3（標準）のときの値。1 で揺らぎなし、5 で 2 倍。
+// 音は早めには鳴らせないので、全体を揺らぎの量に合わせて遅らせ（swayBase）、その前後で動かす
+const SWAY_FACTORS = [0, 0.5, 1, 1.5, 2];
+let swayFactor = 1;
+const swayBase = () => 0.005 + 0.045 * swayFactor;
+const SWAY_DEPTH = 0.025;
+const HAND_DEPTH = 0.012;
+const VELOCITY_DEPTH = 0.012;
+const ROLL = 0.01; // 和音で、1 音ごとに遅らせる長さ（秒。少し揺らす）
 const SPLIT = 261.63; // 右手と左手の分け目（C4 の周波数）
 const swaySeed = Math.random() * 1000;
 // 整数 i ごとに決まる -1〜1 の値（同じ時刻には同じずれになるよう、記憶せずに計算で出す）
@@ -66,10 +72,11 @@ const smoothNoise = (t: number) => {
   return knot(i) * (1 - f) + knot(i + 1) * f;
 };
 const swayAt = (time: number, freq: number, velocity: number) =>
-  SWAY_BASE -
-  VELOCITY_DEPTH * Math.min(Math.max((velocity - 0.5) * 2, -1), 1) +
-  SWAY_DEPTH * (0.6 * smoothNoise(time / 1.5) + 0.4 * smoothNoise(time / 6 + 500)) +
-  HAND_DEPTH * smoothNoise(time / 1.2 + (freq < SPLIT ? 1000 : 2000));
+  swayBase() +
+  swayFactor *
+    (-VELOCITY_DEPTH * Math.min(Math.max((velocity - 0.5) * 2, -1), 1) +
+      SWAY_DEPTH * (0.6 * smoothNoise(time / 1.5) + 0.4 * smoothNoise(time / 6 + 500)) +
+      HAND_DEPTH * smoothNoise(time / 1.2 + (freq < SPLIT ? 1000 : 2000)));
 
 type Strike = { freq: number; seconds: number; at: number; velocity?: number };
 
@@ -102,7 +109,7 @@ class Piano extends Tone.Sampler {
     }
     for (const chord of chords) {
       chord.sort((a, b) => a.freq - b.freq);
-      const roll = ROLL * (0.7 + 0.6 * Math.random());
+      const roll = swayFactor * ROLL * (0.7 + 0.6 * Math.random());
       chord.forEach((s, i) => super.triggerAttackRelease(s.freq, s.seconds, s.at + swayAt(s.at, s.freq, s.velocity ?? 1) + i * roll, s.velocity));
     }
   }
@@ -113,6 +120,20 @@ piano.volume.value = -4;
 // 天気: 空模様で音色の明るさと音の長さ、気温で刻みのある楽章のテンポ、雨（と密度）で音の変わる頻度、雲でリバーブが変わる。
 // 変化: 天気で決まった値を中心に、音域・音色の明るさ・リバーブがゆっくり揺れ、20 分ごとに 5 度上へ転調する
 let speed = 1;
+
+// 響き（1〜5）: リバーブの深さの基準と残響の長さ。天気（雲）と変化は、この基準を中心に揺らす。3 が今までの響き
+const REVERB_BASES = [-0.22, -0.1, 0.05, 0.2, 0.35]; // 天気を使わないときの深さは、およそ 0.03・0.15・0.3・0.45・0.6
+const REVERB_DECAYS = [1.5, 2.5, 3.5, 5, 7];
+let lastParams: SoundParams | null = null;
+const applyReverb = (level: number, params: SoundParams) => {
+  reverb.wet.rampTo(reverbWet(REVERB_BASES[level - 1], params), params.ramp);
+  if (reverb.decay !== REVERB_DECAYS[level - 1]) reverb.decay = REVERB_DECAYS[level - 1];
+};
+let reverbLevel = setupLevel(reverbEl, reverbValueEl, "reverb", (level) => {
+  reverbLevel = level;
+  if (lastParams) applyReverb(level, { ...lastParams, ramp: 0.5 });
+});
+
 // スケールで「指定しない」を選ぶと、今の作曲家の音階を使う（作曲家を変えると音階も変わる）
 let sonata = SONATAS[0];
 // 初めて開いたときは「指定しない」（作曲家ごとの音階）にしておく
@@ -120,13 +141,17 @@ const page = setupGenerativePage({
   defaults: { scale: "composer", root: "D" },
   freeScale: { id: "composer", name: { ja: "指定しない（作曲家にまかせる）", en: "None (composer's choice)" }, scale: () => sonata.scale },
   applyParams: (params) => {
-    reverb.wet.rampTo(reverbWet(0.05, params), params.ramp);
+    lastParams = params;
+    applyReverb(reverbLevel, params);
     filter.frequency.rampTo(6000 * 2 ** (params.drift.brightness + params.mood.brightness), params.ramp);
     speed = params.mood.speed;
     sustain = params.mood.sustain;
   },
 });
 const { transport } = page;
+
+const swayLevel = setupLevel(swayEl, swayValueEl, "sway", (level) => (swayFactor = SWAY_FACTORS[level - 1]));
+swayFactor = SWAY_FACTORS[swayLevel - 1];
 
 tempoEl.addEventListener("input", () => (tempoValueEl.value = tempoEl.value));
 tempoValueEl.value = tempoEl.value;
