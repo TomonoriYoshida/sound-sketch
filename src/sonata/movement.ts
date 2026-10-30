@@ -27,7 +27,8 @@ export type Movement = {
 };
 
 // scale は、設定のスケールで「指定しない」を選んだときに使う、その作曲家の音階
-export type Sonata = { id: string; composer: L; scale: Scale; movements: Movement[] };
+// initials は、作曲家のプルダウンに出す頭文字（右下の表示とヘルプはフルネーム）
+export type Sonata = { id: string; composer: L; initials: string; scale: Scale; movements: Movement[] };
 
 // Transport の上で、今から seconds 秒後の位置（ティックで指定する）。
 // transport.seconds + seconds と書くと、Tone.js はその秒を今のテンポで拍に換算する。経過秒はテンポの変化の履歴で

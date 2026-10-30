@@ -169,7 +169,14 @@ const context: MovementContext = {
 // 選択の表示は、いま鳴らしているソナタ（sonata）に合わせる。
 // ブラウザが再読み込みや「戻る」で選択だけを前の値に戻すことがあるので、autocomplete="off" でも防いでいる
 function fillSelects() {
-  composerEl.replaceChildren(...SONATAS.map((s) => new Option(t(s.composer), s.id)));
+  // 頭文字で出し、フルネームは選択肢に重ねたときの表示（title）に残す
+  composerEl.replaceChildren(
+    ...SONATAS.map((s) => {
+      const option = new Option(s.initials, s.id);
+      option.title = t(s.composer);
+      return option;
+    }),
+  );
   composerEl.value = sonata.id;
   const movement = movementEl.value || "0";
   movementEl.replaceChildren(...sonata.movements.map((m, i) => new Option(t(m.title), String(i))));

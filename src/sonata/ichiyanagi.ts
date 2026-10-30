@@ -490,6 +490,7 @@ const toccata: Movement = {
 export const ichiyanagi: Sonata = {
   id: "ichiyanagi",
   composer: { ja: "一柳慧", en: "Toshi Ichiyanagi" },
+  initials: "T.I.",
   // 調性に寄らない 12 音すべて
   scale: { id: "chromatic", group: "", name: { ja: "半音階", en: "Chromatic" }, steps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
   movements: [shifting, silences, toccata],

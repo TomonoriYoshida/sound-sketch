@@ -399,6 +399,7 @@ const rules: Movement = {
 export const eno: Sonata = {
   id: "eno",
   composer: { ja: "ブライアン・イーノ", en: "Brian Eno" },
+  initials: "B.E.",
   // ループやこだまがどう重なっても濁らないよう、半音を含まない 5 音
   scale: { id: "major-pentatonic", group: "", name: { ja: "メジャーペンタトニック", en: "Major pentatonic" }, steps: [0, 2, 4, 7, 9] },
   movements: [tapeLoops, echoes, rules],
