@@ -44,12 +44,14 @@ const filter = new Tone.Filter({ type: "lowpass", frequency: 6000, rolloff: -12 
 // - 全体の揺れ: 速さの違う 2 つの揺れ（約 1.5 秒と約 6 秒の節目を、なめらかにつなぐ）を重ねる
 // - 手の揺れ: 右手と左手（真ん中の C で分ける）が、それぞれ別にゆっくり揺れ、両手が重なる所がぴったりそろわない
 // - 和音の崩し: 同時に鳴る音は、低い音から順に少しずつ遅らせる
+// - 強さと時間: 強い音はほんの少し早く、弱い音は少し遅く（強さ 0.5 を境に、最大 ±VELOCITY_DEPTH）
 // 音は早めには鳴らせないので、全体を SWAY_BASE だけ遅らせ、その前後で動かす。
 // 試すとき用: ?nosway を付けると、揺らぎなしで鳴る
 const SWAY = !new URLSearchParams(location.search).has("nosway");
-const SWAY_BASE = 0.04;
+const SWAY_BASE = 0.05;
 const SWAY_DEPTH = SWAY ? 0.025 : 0;
 const HAND_DEPTH = SWAY ? 0.012 : 0;
+const VELOCITY_DEPTH = SWAY ? 0.012 : 0;
 const ROLL = SWAY ? 0.01 : 0; // 和音で、1 音ごとに遅らせる長さ（秒。少し揺らす）
 const SPLIT = 261.63; // 右手と左手の分け目（C4 の周波数）
 const swaySeed = Math.random() * 1000;
@@ -63,8 +65,9 @@ const smoothNoise = (t: number) => {
   const f = (1 - Math.cos((t - i) * Math.PI)) / 2;
   return knot(i) * (1 - f) + knot(i + 1) * f;
 };
-const swayAt = (time: number, freq: number) =>
-  SWAY_BASE +
+const swayAt = (time: number, freq: number, velocity: number) =>
+  SWAY_BASE -
+  VELOCITY_DEPTH * Math.min(Math.max((velocity - 0.5) * 2, -1), 1) +
   SWAY_DEPTH * (0.6 * smoothNoise(time / 1.5) + 0.4 * smoothNoise(time / 6 + 500)) +
   HAND_DEPTH * smoothNoise(time / 1.2 + (freq < SPLIT ? 1000 : 2000));
 
@@ -100,7 +103,7 @@ class Piano extends Tone.Sampler {
     for (const chord of chords) {
       chord.sort((a, b) => a.freq - b.freq);
       const roll = ROLL * (0.7 + 0.6 * Math.random());
-      chord.forEach((s, i) => super.triggerAttackRelease(s.freq, s.seconds, s.at + swayAt(s.at, s.freq) + i * roll, s.velocity));
+      chord.forEach((s, i) => super.triggerAttackRelease(s.freq, s.seconds, s.at + swayAt(s.at, s.freq, s.velocity ?? 1) + i * roll, s.velocity));
     }
   }
 }
