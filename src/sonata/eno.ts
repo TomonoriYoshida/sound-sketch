@@ -1,39 +1,12 @@
 import * as Tone from "tone";
 import { pitchAt, pitchIndexAt } from "../scales";
-import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, random, type Sonata, yOf } from "./movement";
+import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, pendingQueue, random, scheduler, type Sonata, TICK, yOf } from "./movement";
 
 // ブライアン・イーノがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // I.  長さの違うループ: 1〜2 音の短い句を、長さの違うループに載せて重ねる。同じ響きはほとんど二度と来ない
 // II. こだま: ぽつんと置いた音が、テープのこだまのように一定の間で繰り返されながら小さくなり、重なって和音になる
 // III. 規則から生まれる旋律: 隣の音へ動きやすい、ときどき休む、といった規則だけで旋律が生まれ、低い音がゆっくり支える
 // イーノの楽章は刻みを持たないので、テンポの設定は使わない。時刻はすべて音の時計（AudioContext の時刻）で持つ
-
-const TICK = 0.1; // 先読みの幅（秒）。この幅の中に来る音を、正確な時刻を指定して鳴らす
-
-// 音の時計で動く小さな予定表。stop() で、まだ鳴っていない予定ごと止められる
-function scheduler(ctx: MovementContext, tick: (time: number) => void) {
-  return new Tone.Loop((time) => tick(time), TICK).start(after(ctx.transport, 0.05));
-}
-
-type Pending = { time: number; index: number; velocity: number; seconds: number; octave?: number; onPlay?: () => void };
-
-// 先の時刻の音を貯めておき、時刻が近づいたら鳴らす
-function pendingQueue(ctx: MovementContext) {
-  let queue: Pending[] = [];
-  return {
-    add: (p: Pending) => queue.push(p),
-    flush(time: number) {
-      const due = queue.filter((p) => p.time < time + TICK);
-      queue = queue.filter((p) => p.time >= time + TICK);
-      const pitches = ctx.pitches();
-      for (const p of due) {
-        ctx.piano.triggerAttackRelease(pitchAt(pitches, p.index).freq * 2 ** (p.octave ?? 0), p.seconds, Math.max(p.time, time), p.velocity);
-        if (p.onPlay) Tone.getDraw().schedule(p.onPlay, Math.max(p.time, time));
-      }
-    },
-    clear: () => (queue = []),
-  };
-}
 
 // 中ほどより上の音域にある主音（なければ一番低い主音）
 const rootAbove = (ctx: MovementContext, from: number) => {

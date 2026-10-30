@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import type { L } from "../i18n";
-import type { Pitch, Scale } from "../scales";
+import { type Pitch, pitchAt, type Scale } from "../scales";
 
 // ソナタの楽章に共通の形。楽章は始まりから終わりまでの流れを自分で持ち、終わったら finished() が true になる。
 // ページ（main.ts）は、終わった楽章を止めて次の楽章を始め、III が終わったらソナタを終える
@@ -46,4 +46,33 @@ export function yOf(index: number, height: number, count: number): number {
 
 export function random(min: number, max: number): number {
   return min + Math.random() * (max - min);
+}
+
+// 音の時計（AudioContext の時刻）で予定を立てる部品。刻みを持たない楽章（イーノ、ペルト）で使う
+
+export const TICK = 0.1; // 先読みの幅（秒）。この幅の中に来る音を、正確な時刻を指定して鳴らす
+
+// 音の時計で動く小さな予定表。stop() で、まだ鳴っていない予定ごと止められる
+export function scheduler(ctx: MovementContext, tick: (time: number) => void) {
+  return new Tone.Loop((time) => tick(time), TICK).start(after(ctx.transport, 0.05));
+}
+
+export type Pending = { time: number; index: number; velocity: number; seconds: number; octave?: number; onPlay?: () => void };
+
+// 先の時刻の音を貯めておき、時刻が近づいたら鳴らす
+export function pendingQueue(ctx: MovementContext) {
+  let queue: Pending[] = [];
+  return {
+    add: (p: Pending) => queue.push(p),
+    flush(time: number) {
+      const due = queue.filter((p) => p.time < time + TICK);
+      queue = queue.filter((p) => p.time >= time + TICK);
+      const pitches = ctx.pitches();
+      for (const p of due) {
+        ctx.piano.triggerAttackRelease(pitchAt(pitches, p.index).freq * 2 ** (p.octave ?? 0), p.seconds, Math.max(p.time, time), p.velocity);
+        if (p.onPlay) Tone.getDraw().schedule(p.onPlay, Math.max(p.time, time));
+      }
+    },
+    clear: () => (queue = []),
+  };
 }
