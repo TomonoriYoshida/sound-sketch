@@ -4,7 +4,8 @@ import { t } from "../i18n";
 import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, random, type Sonata, yOf } from "./movement";
 
 // スティーヴ・ライヒがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
-// I.  フェイズ: 両手が同じ 12 音の型を弾き、片方の手だけがほんの少し速くなって 1 音ずつ前へずれ、また重なる。12 回ずれると、元のそろった形に戻る
+// I.  フェイズ: 両手が同じ 12 音の型を弾き、片方の手だけがほんの少し速くなって 1 音ずつ前へずれ、また重なる。12 回ずれると、元のそろった形に戻る。
+//     ずれが 3 回進むごとに、型を音階の上でずらして和音を移し、そろうと最初の和音に帰る
 // II. 脈動する和音: 和音を刻み続け、息の長さでふくらんでは消える。和音は少しずつ移り、最初の和音に帰る
 // III. 積み上げ: 休符だった拍を 1 つずつ音に置き換えて型を作り、ずらした位置でもう一方の手が同じ型を積み上げる。最後は音を休符に戻していく
 
@@ -24,6 +25,7 @@ const PATTERN_LENGTH = 12;
 const PHASE_FROM = 0.06; // ここまでは両手がそろったまま
 const PHASE_TO = 0.93; // ここで 12 回ずれ終え、そろった形に戻る
 const HOLD = 0.6; // 1 回のずれのうち、止まって重なりを聞かせる割合（残りでなめらかにずれる）
+const STAGES_PER_CHORD = 3; // ずれが 3 回進むごとに和音が変わる（12 回で 4 つの和音を巡り、そろうと最初の和音に帰る）
 
 const phase: Movement = {
   title: { ja: "I. フェイズ", en: "I. Phase" },
@@ -40,14 +42,31 @@ const phase: Movement = {
     const glow = { a: pattern.map(() => 0), b: pattern.map(() => 0) };
 
     // 左手（B）が右手（A）より何音ぶん前にいるか。止まる → なめらかにずれる、を 12 回繰り返す
+    const stageOf = (progress: number) => Math.min(Math.max((progress - PHASE_FROM) / (PHASE_TO - PHASE_FROM), 0), 1) * PATTERN_LENGTH;
     const shiftAt = (progress: number) => {
-      const x = Math.min(Math.max((progress - PHASE_FROM) / (PHASE_TO - PHASE_FROM), 0), 1) * PATTERN_LENGTH;
+      const x = stageOf(progress);
       const stage = Math.floor(x);
       if (stage >= PATTERN_LENGTH) return PATTERN_LENGTH;
       const within = x - stage;
       return stage + (within < HOLD ? 0 : smoothstep((within - HOLD) / (1 - HOLD)));
     };
     let shift = 0;
+
+    // 和音の移り: 型の形はそのままに、音階の上で何段かずらす（音程の関係が変わり、和音の性格が変わる）。
+    // 最初と最後（そろった形に戻ったとき）は、ずらさない
+    const moves = [-3, -2, 2, 3, 4].sort(() => Math.random() - 0.5);
+    const chords = [0, moves[0], moves[1], moves[2]];
+    const chordOf = (progress: number) => {
+      const stage = Math.floor(stageOf(progress));
+      return stage >= PATTERN_LENGTH ? 0 : Math.floor(stage / STAGES_PER_CHORD);
+    };
+    let chord = 0;
+    let transpose = 0;
+    // 和音の低い音（型の一番低い音の 2 オクターブ下）を、和音が変わったときと 2 周ごとに長く置く
+    const bass = (time: number, velocity: number) => {
+      const freq = pitchAt(ctx.pitches(), Math.min(...pattern) + transpose).freq / 4;
+      piano.triggerAttackRelease(freq, 4, time, velocity);
+    };
 
     let step = 0; // 右手が弾いた音の数
     let bNext = 0; // 左手が次に弾く音の番号（ずれた分だけ右手より多く弾く）
@@ -56,7 +75,7 @@ const phase: Movement = {
 
     const strike = (index: number, time: number, velocity: number, octaveDown: boolean, glowOf: number[]) => {
       const at = index % PATTERN_LENGTH;
-      const freq = pitchAt(ctx.pitches(), pattern[at]).freq / (octaveDown ? 2 : 1);
+      const freq = pitchAt(ctx.pitches(), pattern[at] + transpose).freq / (octaveDown ? 2 : 1);
       piano.triggerAttackRelease(freq, Tone.Time("16n").toSeconds() * 1.5, time + Math.random() * 0.004, velocity);
       Tone.getDraw().schedule(() => {
         if (glowOf === glow.a) playingA = at;
@@ -78,6 +97,15 @@ const phase: Movement = {
 
       const sixteenth = Tone.Time("16n").toSeconds();
       const swell = 0.55 + 0.25 * Math.sin(Math.PI * Math.min(progress, 1));
+      // 和音は、右手の型の頭で変える
+      if (step % PATTERN_LENGTH === 0) {
+        const next = chordOf(progress);
+        if (next !== chord) {
+          chord = next;
+          transpose = chords[chord];
+          bass(time, 0.35 * swell + 0.1);
+        } else if (step % (PATTERN_LENGTH * 2) === 0 && progress >= PHASE_FROM / 2) bass(time, 0.2 * swell);
+      }
       strike(step, time, swell * (step % 3 === 0 ? 1.15 : 1), false, glow.a);
       // 左手: 型の上の位置は bNext - shift。この刻みに入る音をすべて弾く（ずれている間は、ときどき 1 刻みに 2 音になる）
       if (progress >= PHASE_FROM / 2) {
@@ -96,7 +124,7 @@ const phase: Movement = {
       pointer(_x, y, height) {
         if (endAt !== Infinity) return;
         const at = step % PATTERN_LENGTH;
-        pattern[at] = pitchIndexAt(y, height, ctx.pitches().length);
+        pattern[at] = pitchIndexAt(y, height, ctx.pitches().length) - transpose;
         glow.a[at] = 1;
       },
       // 2 つの輪: 外が右手、内が左手。左手の輪は、ずれた分だけ回っている
@@ -119,7 +147,7 @@ const phase: Movement = {
           g.stroke();
           pattern.forEach((note, i) => {
             // 音の高さは、輪からの張り出しで示す
-            const reach = r + ((note / Math.max(count - 1, 1)) - 0.5) * 40;
+            const reach = r + (((note + transpose) / Math.max(count - 1, 1)) - 0.5) * 40;
             const x = cx + Math.cos(angle(i)) * reach;
             const y = cy + Math.sin(angle(i)) * reach;
             g.fillStyle = `hsla(${hue}, 80%, ${55 + 25 * list[i]}%, ${0.35 + 0.65 * list[i]})`;
@@ -142,7 +170,9 @@ const phase: Movement = {
         g.textAlign = "center";
         g.fillStyle = "rgba(255, 255, 255, 0.5)";
         const label = shift >= PATTERN_LENGTH || shift === 0 ? t({ ja: "そろっている", en: "in unison" }) : `${Math.floor(shift)} / ${PATTERN_LENGTH}`;
-        g.fillText(label, cx, cy + 5);
+        g.fillText(label, cx, cy - 4);
+        g.fillStyle = "rgba(255, 255, 255, 0.35)";
+        g.fillText(`${t({ ja: "和音", en: "chord" })} ${chord + 1} / ${chords.length}`, cx, cy + 16);
       },
       finished: () => Tone.now() >= endAt,
       stop() {
