@@ -40,12 +40,18 @@ for (let octave = 1; octave <= 7; octave++)
 
 const reverb = new Tone.Reverb({ decay: 3.5, wet: 0.15 }).toDestination();
 const filter = new Tone.Filter({ type: "lowpass", frequency: 6000, rolloff: -12 }).connect(reverb);
-// 時間の揺らぎ: 1 音ごとのでたらめなずれではなく、ずれ自体がゆっくり変わる（しばらく前のめり、やがてもたる）。
-// 速さの違う 2 つの揺れ（約 1.5 秒と約 6 秒の節目を、なめらかにつなぐ）を重ねる。
-// 音は早めには鳴らせないので、全体を SWAY_BASE だけ遅らせ、その前後 SWAY_DEPTH の中で動かす。
+// 時間の揺らぎ。1 音ごとのでたらめなずれではなく、ずれ自体がゆっくり変わる（しばらく前のめり、やがてもたる）。
+// - 全体の揺れ: 速さの違う 2 つの揺れ（約 1.5 秒と約 6 秒の節目を、なめらかにつなぐ）を重ねる
+// - 手の揺れ: 右手と左手（真ん中の C で分ける）が、それぞれ別にゆっくり揺れ、両手が重なる所がぴったりそろわない
+// - 和音の崩し: 同時に鳴る音は、低い音から順に少しずつ遅らせる
+// 音は早めには鳴らせないので、全体を SWAY_BASE だけ遅らせ、その前後で動かす。
 // 試すとき用: ?nosway を付けると、揺らぎなしで鳴る
-const SWAY_BASE = 0.03;
-const SWAY_DEPTH = new URLSearchParams(location.search).has("nosway") ? 0 : 0.025;
+const SWAY = !new URLSearchParams(location.search).has("nosway");
+const SWAY_BASE = 0.04;
+const SWAY_DEPTH = SWAY ? 0.025 : 0;
+const HAND_DEPTH = SWAY ? 0.012 : 0;
+const ROLL = SWAY ? 0.01 : 0; // 和音で、1 音ごとに遅らせる長さ（秒。少し揺らす）
+const SPLIT = 261.63; // 右手と左手の分け目（C4 の周波数）
 const swaySeed = Math.random() * 1000;
 // 整数 i ごとに決まる -1〜1 の値（同じ時刻には同じずれになるよう、記憶せずに計算で出す）
 const knot = (i: number) => {
@@ -57,15 +63,45 @@ const smoothNoise = (t: number) => {
   const f = (1 - Math.cos((t - i) * Math.PI)) / 2;
   return knot(i) * (1 - f) + knot(i + 1) * f;
 };
-const swayAt = (time: number) => SWAY_BASE + SWAY_DEPTH * (0.6 * smoothNoise(time / 1.5) + 0.4 * smoothNoise(time / 6 + 500));
+const swayAt = (time: number, freq: number) =>
+  SWAY_BASE +
+  SWAY_DEPTH * (0.6 * smoothNoise(time / 1.5) + 0.4 * smoothNoise(time / 6 + 500)) +
+  HAND_DEPTH * smoothNoise(time / 1.2 + (freq < SPLIT ? 1000 : 2000));
 
-// 楽章が指定した音の長さに、空模様による倍率を掛け、時刻に揺らぎを足して鳴らす（雨で短く、雪で長く）
+type Strike = { freq: number; seconds: number; at: number; velocity?: number };
+
+// 楽章が指定した音の長さに、空模様による倍率を掛け、時刻に揺らぎを足して鳴らす（雨で短く、雪で長く）。
+// 和音を崩すには同時に鳴る音がそろっている必要があるので、同じ処理の中で頼まれた音をいったん貯め、まとめて鳴らす
 let sustain = 1;
 class Piano extends Tone.Sampler {
+  private batch: Strike[] = [];
+
   triggerAttackRelease(...[notes, duration, time, velocity]: Parameters<Tone.Sampler["triggerAttackRelease"]>) {
-    const seconds = Array.isArray(duration) ? duration.map((d) => Tone.Time(d).toSeconds() * sustain) : Tone.Time(duration).toSeconds() * sustain;
     const at = time === undefined ? Tone.now() : Tone.Time(time).toSeconds();
-    return super.triggerAttackRelease(notes, seconds, at + swayAt(at), velocity);
+    const list = Array.isArray(notes) ? notes : [notes];
+    list.forEach((note, i) => {
+      const length = Array.isArray(duration) ? duration[Math.min(i, duration.length - 1)] : duration;
+      this.batch.push({ freq: Tone.Frequency(note).toFrequency(), seconds: Tone.Time(length).toSeconds() * sustain, at, velocity });
+    });
+    if (this.batch.length === list.length) queueMicrotask(() => this.flush());
+    return this;
+  }
+
+  // 頼まれた時刻が 10 ミリ秒以内の音を和音とみなし、低い音から順に遅らせる
+  private flush() {
+    const strikes = this.batch.sort((a, b) => a.at - b.at);
+    this.batch = [];
+    const chords: Strike[][] = [];
+    for (const strike of strikes) {
+      const chord = chords.at(-1);
+      if (chord && strike.at - chord[0].at < 0.01) chord.push(strike);
+      else chords.push([strike]);
+    }
+    for (const chord of chords) {
+      chord.sort((a, b) => a.freq - b.freq);
+      const roll = ROLL * (0.7 + 0.6 * Math.random());
+      chord.forEach((s, i) => super.triggerAttackRelease(s.freq, s.seconds, s.at + swayAt(s.at, s.freq) + i * roll, s.velocity));
+    }
   }
 }
 const piano = new Piano({ urls, baseUrl: `${import.meta.env.BASE_URL}samples/piano/`, release: 0.6 }).connect(filter);
@@ -76,8 +112,9 @@ piano.volume.value = -4;
 let speed = 1;
 // スケールで「指定しない」を選ぶと、今の作曲家の音階を使う（作曲家を変えると音階も変わる）
 let sonata = SONATAS[0];
+// 初めて開いたときは「指定しない」（作曲家ごとの音階）にしておく
 const page = setupGenerativePage({
-  defaults: { scale: "ritsu", root: "D" },
+  defaults: { scale: "composer", root: "D" },
   freeScale: { id: "composer", name: { ja: "指定しない（作曲家にまかせる）", en: "None (composer's choice)" }, scale: () => sonata.scale },
   applyParams: (params) => {
     reverb.wet.rampTo(reverbWet(0.05, params), params.ramp);
