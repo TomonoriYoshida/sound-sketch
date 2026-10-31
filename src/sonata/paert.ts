@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { pitchIndexAt } from "../scales";
-import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, pendingQueue, random, scheduler, type Sonata, TICK, yOf } from "./movement";
+import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, pendingQueue, rand, random, scheduler, type Sonata, TICK, yOf } from "./movement";
 
 // アルヴォ・ペルトがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方（ティンティナブリ）だけを借りている。
 // ティンティナブリ: 音階を順に動く旋律（M 声部）に、主和音の音だけを弾く声部（T 声部）が規則で付く。
@@ -321,7 +321,7 @@ const mirror: Movement = {
       if (progress >= MIRROR_END) distance = Math.max(0, distance - 1);
       else if (distance > span) distance--;
       else if (distance === 0) distance = 1;
-      else distance += distance >= span || Math.random() < 0.4 ? -1 : 1;
+      else distance += distance >= span || rand() < 0.4 ? -1 : 1;
 
       const upper = Math.min(h.centre + distance, h.count - 1);
       const lower = Math.max(h.centre - distance, 0);

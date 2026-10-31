@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { pitchIndexAt } from "../scales";
-import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, pendingQueue, random, scheduler, type Sonata, TICK, yOf } from "./movement";
+import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, pendingQueue, rand, random, scheduler, type Sonata, TICK, yOf } from "./movement";
 
 // コンロン・ナンカロウがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // ナンカロウは自動ピアノのために、人の手では弾けない速さと、テンポの違う声部の重なりを書いた。
@@ -117,8 +117,8 @@ const acceleration: Movement = {
           const seconds = Math.min(1.5 / rate, 1.6);
           const index = r.index;
           queue.add({ time: at, index, velocity, seconds, onPlay: view.add({ time: at, index, voice, seconds, velocity }) });
-          if (Math.random() > 0.6 + 0.3 * fast) r.direction = -r.direction;
-          const step = Math.random() < 0.15 * (1 - fast) ? Math.floor(random(2, 5)) : 1;
+          if (rand() > 0.6 + 0.3 * fast) r.direction = -r.direction;
+          const step = rand() < 0.15 * (1 - fast) ? Math.floor(random(2, 5)) : 1;
           r.index += r.direction * step;
           if (r.index > r.high || r.index < r.low) {
             r.direction = -r.direction;
@@ -183,7 +183,7 @@ const boogie: Movement = {
     let bassAt = startAt + 0.5;
     let step = 0; // 左手が弾いた 8 分音符の数
     let chord = 0; // 今の和音（右手の型もこれに合わせる）
-    const riffs = [...RIFFS].sort(() => Math.random() - 0.5);
+    const riffs = [...RIFFS].sort(() => rand() - 0.5);
     const layers = LAYERS.map((l, i) => ({ ...l, riff: riffs[i], nextAt: startAt + 0.5, position: 0 }));
     let ending = false;
 
@@ -282,13 +282,13 @@ const convergence: Movement = {
     let offset = 0;
     let beats = 0;
     while (beats < total) {
-      const length = DURATIONS[Math.floor(Math.random() * DURATIONS.length)];
+      const length = DURATIONS[Math.floor(rand() * DURATIONS.length)];
       const span = length === 0.5 ? [0.5, 0.5] : [length];
       for (const b of span) {
         melody.push({ at: beats, offset, beats: b });
         beats += b;
-        const leap = Math.random() < 0.15 ? Math.floor(random(2, 5)) : 1;
-        offset += (Math.random() < 0.5 ? -1 : 1) * leap;
+        const leap = rand() < 0.15 ? Math.floor(random(2, 5)) : 1;
+        offset += (rand() < 0.5 ? -1 : 1) * leap;
         offset = Math.min(Math.max(offset, 0), top);
       }
     }

@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { pitchAt, pitchIndexAt } from "../scales";
-import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, pendingQueue, random, scheduler, type Sonata, TICK, yOf } from "./movement";
+import { MARGIN_LEFT, MARGIN_RIGHT, type Movement, type MovementContext, pendingQueue, rand, random, scheduler, type Sonata, TICK, yOf } from "./movement";
 
 // ブライアン・イーノがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // I.  長さの違うループ: 1〜2 音の短い句を、長さの違うループに載せて重ねる。同じ響きはほとんど二度と来ない
@@ -44,7 +44,7 @@ const tapeLoops: Movement = {
 
     const add = (index: number, length: number, firstAt: number) => {
       const count = ctx.pitches().length;
-      const second = Math.random() < 0.5 ? Math.min(Math.max(index + (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 2)), 0), count - 1) : null;
+      const second = rand() < 0.5 ? Math.min(Math.max(index + (rand() < 0.5 ? -1 : 1) * (1 + Math.floor(rand() * 2)), 0), count - 1) : null;
       loops.push({ index, second, gap: random(0.6, 2.2), length, nextAt: firstAt, dying: false, glow: 0, hue: random(180, 260) });
     };
 
@@ -181,7 +181,7 @@ const echoes: Movement = {
         endAt = lastEcho + 4;
         return;
       }
-      if (Math.random() < 0.2) centre = Math.min(Math.max(centre + (Math.random() < 0.5 ? -1 : 1), 2), count() - 3);
+      if (rand() < 0.2) centre = Math.min(Math.max(centre + (rand() < 0.5 ? -1 : 1), 2), count() - 3);
       place(nextAt, Math.min(Math.max(centre + Math.floor(random(-2, 3)), 0), count() - 1), random(0.25, 0.45));
       // 次の音までの間。中ほどで最も短い
       nextAt += Math.min(14, random(4, 9) / (0.5 + Math.sin(Math.PI * progress)) / Math.sqrt(ctx.density()));
@@ -252,9 +252,9 @@ const rules: Movement = {
 
     // 次の音の規則: 隣の音へが半分、2 つ隣が 4 分の 1、同じ音が 1 割、残りは 3 つ隣。音域の外へは出ない
     const nextNote = (from: number) => {
-      const roll = Math.random();
+      const roll = rand();
       const size = roll < 0.5 ? 1 : roll < 0.75 ? 2 : roll < 0.85 ? 0 : 3;
-      const up = Math.random() < 0.5 ? 1 : -1;
+      const up = rand() < 0.5 ? 1 : -1;
       const next = from + size * up;
       return next < low() || next >= count() ? from - size * up : next;
     };
@@ -267,7 +267,7 @@ const rules: Movement = {
         // 低い音: 4〜7 秒ごとに、主音か、その少し上を長く
         const progress = (bassAt - startAt) / rules.duration;
         if (bassAt >= shiftAt && progress < 0.85) {
-          shift = [0, 2, 3][Math.floor(Math.random() * 3)];
+          shift = [0, 2, 3][Math.floor(rand() * 3)];
           shiftAt = bassAt + random(30, 40);
         }
         if (progress >= 0.85) shift = 0;
@@ -280,7 +280,7 @@ const rules: Movement = {
       if (melodyAt >= time + TICK) return;
       const at = melodyAt;
       const progress = (at - startAt) / rules.duration;
-      const length = UNIT * [1, 1, 1, 2, 2, 3][Math.floor(Math.random() * 6)];
+      const length = UNIT * [1, 1, 1, 2, 2, 3][Math.floor(rand() * 6)];
       melodyAt += length;
 
       if (progress >= 0.93) {
@@ -304,7 +304,7 @@ const rules: Movement = {
 
       // 休むかどうか。中ほどで休みが少ない
       const rest = Math.max(0.08, 0.4 - 0.25 * Math.sin(Math.PI * progress) * Math.sqrt(ctx.density()));
-      if (Math.random() < rest) return;
+      if (rand() < rest) return;
       note = nextNote(note);
       const velocity = 0.2 + 0.2 * Math.sin(Math.PI * progress) + random(0, 0.08);
       const seconds = length * 2.5;

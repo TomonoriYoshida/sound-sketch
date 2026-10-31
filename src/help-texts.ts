@@ -291,6 +291,20 @@ export const HELP_BY_PAGE: Record<string, Record<string, HelpText>> = {
         en: "The current movement. Choosing one plays it from the start, and the following movements continue after it.",
       },
     },
+    '[data-section="performance"] h2': {
+      title: { ja: "演奏と評価", en: "Performance and ratings" },
+      text: {
+        ja: "楽章を鳴らしている間（と次の楽章が始まるまで）、左下に「良い・普通・ダメ」のボタンが出ます（キーの 1・2・3 でも押せます）。押すと、その楽章の評価を、種・設定・天気・その日に何楽章目か・直前の楽章と、鳴った音から計算した特徴量（音域の幅、跳躍や繰り返しの割合、主音で終わったかなど）と一緒に記録します。押し直すと評価を置き換えます。記録はこのブラウザの中だけに残り、JSON や CSV で書き出して傾向を調べられます。",
+        en: "While a movement plays (and until the next one starts), Good / OK / Bad buttons appear at the bottom left (or press 1, 2, 3). Rating saves it with the seed, settings, weather, how many movements you'd heard that day, the previous movement, and features computed from the notes played (range, share of leaps and repeats, whether it ended on the root and so on). Rating again replaces it. Ratings stay in this browser only; export them as JSON or CSV to look for trends.",
+      },
+    },
+    "#seed": {
+      title: { ja: "種", en: "Seed" },
+      text: {
+        ja: "演奏の材料（型・旋律・和音の順番など）を決める乱数の種です。空のときは、I から始めるたびに新しい種を引きます。今の種は画面の右下に出ます。良かった演奏の種を入れると（「今の演奏の種を使う」でも入ります）、同じ演奏をもう一度聴けます。ただし天気・変化・音域・密度・テンポが違うと、同じ種でも違う演奏になります。種は URL にも残ります。",
+        en: "The random seed that picks the material of a performance (patterns, melodies, the order of chords and so on). When empty, a new seed is drawn each time the sonata starts from movement I. The current seed is shown at the bottom right. Enter the seed of a performance you liked (or press \"Use this performance's seed\") to hear the same performance again. Weather, Drift, register, density and tempo still change it. The seed is kept in the URL.",
+      },
+    },
     "#restart": {
       title: { ja: "最初から", en: "From the top" },
       text: { ja: "ソナタを I 楽章の始めから鳴らし直します。", en: "Plays the sonata again from the start of movement I." },

@@ -45,8 +45,31 @@ export function yOf(index: number, height: number, count: number): number {
   return height - (index + 0.5) * (height / count);
 }
 
+// 楽章が使う乱数。種から決まる並びなので、同じ種・同じ設定なら同じ演奏になる（ページが楽章ごとに種を入れる）。
+// 楽章の中では Math.random でなく、rand と random を使う
+let state = 1;
+export function rand(): number {
+  // mulberry32
+  state = (state + 0x6d2b79f5) | 0;
+  let x = Math.imul(state ^ (state >>> 15), 1 | state);
+  x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+  return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+}
+export function seedRandom(text: string) {
+  // 文字列から 32 ビットの値を作る（FNV-1a）
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  state = h | 0;
+}
+// クリックのように、演奏の外から来た出来事で使った乱数が、その先の並びを変えないようにする
+export function keepRandom(action: () => void) {
+  const saved = state;
+  action();
+  state = saved;
+}
+
 export function random(min: number, max: number): number {
-  return min + Math.random() * (max - min);
+  return min + rand() * (max - min);
 }
 
 // 音の時計（AudioContext の時刻）で予定を立てる部品。刻みを持たない楽章（イーノ、ペルト）で使う

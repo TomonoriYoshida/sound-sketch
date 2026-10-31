@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import "../ripples/style.css";
+import "./style.css";
 import { drawPitchGuides } from "../scales";
 import { reverbWet, setupCanvas, setupGenerativePage, type SoundParams } from "../generative";
 import { onLangChange, t } from "../i18n";
@@ -10,7 +11,8 @@ import { ichiyanagi } from "./ichiyanagi";
 import { nancarrow } from "./nancarrow";
 import { paert } from "./paert";
 import { reich } from "./reich";
-import type { MovementContext, MovementRun, Sonata } from "./movement";
+import { clearRecords, exportCsv, exportJson, type Listening, loadRecords, midiOf, nextPlayIndex, rate, type Rating } from "./ratings";
+import { keepRandom, type MovementContext, type MovementRun, seedRandom, type Sonata } from "./movement";
 
 // 作曲家ごとに独立したピアノソナタ（3 楽章）。作曲家を選ぶと、I → II → III がその作曲家の作り方で続けて鳴り、
 // III が終わるとソナタも終わる。楽章は自分の流れ（始まり・盛り上がり・終わり）を持つ
@@ -31,6 +33,10 @@ const reverbValueEl = document.querySelector<HTMLOutputElement>("#reverb-value")
 const swayEl = document.querySelector<HTMLInputElement>("#sway")!;
 const swayValueEl = document.querySelector<HTMLOutputElement>("#sway-value")!;
 const tuningEl = document.querySelector<HTMLSelectElement>("#tuning")!;
+const seedEl = document.querySelector<HTMLInputElement>("#seed")!;
+const ratingEl = document.querySelector<HTMLDivElement>("#rating")!;
+const ratingCountEl = document.querySelector<HTMLOutputElement>("#rating-count")!;
+const seedKeepEl = document.querySelector<HTMLButtonElement>("#seed-keep")!;
 const tempoEl = document.querySelector<HTMLInputElement>("#tempo")!;
 const tempoValueEl = document.querySelector<HTMLOutputElement>("#tempo-value")!;
 
@@ -103,6 +109,8 @@ type Strike = { freq: number; seconds: number; at: number; velocity?: number };
 // 楽章が指定した音の長さに、空模様による倍率を掛け、時刻に揺らぎを足して鳴らす（雨で短く、雪で長く）。
 // 和音を崩すには同時に鳴る音がそろっている必要があるので、同じ処理の中で頼まれた音をいったん貯め、まとめて鳴らす
 let sustain = 1;
+// 今聴いている楽章の記録（評価のため）。楽章を始めるたびに作り直す
+let listening: Listening | null = null;
 class Piano extends Tone.Sampler {
   private batch: Strike[] = [];
 
@@ -111,7 +119,10 @@ class Piano extends Tone.Sampler {
     const list = Array.isArray(notes) ? notes : [notes];
     list.forEach((note, i) => {
       const length = Array.isArray(duration) ? duration[Math.min(i, duration.length - 1)] : duration;
-      this.batch.push({ freq: Tone.Frequency(note).toFrequency(), seconds: Tone.Time(length).toSeconds() * sustain, at, velocity });
+      const strike = { freq: Tone.Frequency(note).toFrequency(), seconds: Tone.Time(length).toSeconds() * sustain, at, velocity };
+      this.batch.push(strike);
+      // 評価の記録のため、楽章が頼んだ音（揺らぎを足す前）を残す
+      listening?.notes.push({ t: at - listening.startedAt, midi: midiOf(strike.freq), velocity: velocity ?? 1, seconds: strike.seconds });
     });
     if (this.batch.length === list.length) queueMicrotask(() => this.flush());
     return this;
@@ -229,6 +240,108 @@ function fillSelects() {
 fillSelects();
 onLangChange(fillSelects);
 
+// --- 種 ---
+
+// 演奏ごとに 5 桁の種を決め、楽章の乱数はこの種と作曲家・楽章から決める（同じ種・同じ設定なら同じ演奏になる）。
+// 設定で種を入れると、その種で固定する（URL の ?seed=… に残る）。空なら、I から始めるたびに新しい種を引く。
+// 天気・変化・音域・密度・テンポが違うと、同じ種でも違う演奏になる
+const newSeed = () => String(10000 + Math.floor(Math.random() * 90000));
+let seed = newSeed();
+const fixedSeed = () => (/^\d{1,5}$/.test(seedEl.value) ? seedEl.value : null);
+const seedFromUrl = new URLSearchParams(location.search).get("seed");
+if (seedFromUrl && /^\d{1,5}$/.test(seedFromUrl)) seedEl.value = seedFromUrl;
+const writeSeed = () => {
+  const url = new URL(location.href);
+  if (fixedSeed()) url.searchParams.set("seed", fixedSeed()!);
+  else url.searchParams.delete("seed");
+  history.replaceState(null, "", url);
+  syncNavQuery();
+};
+const seedPlaceholder = () => (seedEl.placeholder = t({ ja: "毎回変える", en: "new each time" }));
+seedPlaceholder();
+onLangChange(seedPlaceholder);
+seedEl.addEventListener("input", () => {
+  seedEl.value = seedEl.value.replace(/\D/g, "");
+  writeSeed();
+});
+seedKeepEl.addEventListener("click", () => {
+  seedEl.value = seed;
+  writeSeed();
+});
+writeSeed();
+
+// --- 評価 ---
+
+// 楽章を始めるときに、評価のための記録を作る。設定と天気は、始めたときの値を残す
+const value = (id: string) => document.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? "";
+const checked = (id: string) => document.querySelector<HTMLInputElement>(`#${id}`)?.checked ?? false;
+function newListening(i: number): Listening {
+  const previous = listening ? `${listening.composer}:${listening.movement}` : null;
+  const root = page.pitches().find((p) => p.isRoot);
+  const { icon, ...mood } = page.mood() as ReturnType<typeof page.mood> & { icon?: string };
+  return {
+    runId: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+    seed,
+    seedFixed: fixedSeed() !== null,
+    composer: sonata.id,
+    movement: i,
+    title: sonata.movements[i].title.ja,
+    planned: sonata.movements[i].duration,
+    startedAt: Tone.now(),
+    finishedAt: null,
+    notes: [],
+    clicks: 0,
+    previous,
+    playIndex: nextPlayIndex(),
+    rootPc: root ? ((Math.round(midiOf(root.freq)) % 12) + 12) % 12 : 0,
+    settings: {
+      scale: value("scale"),
+      root: value("root"),
+      register: Number(value("register")),
+      density: Number(value("density")),
+      reverb: Number(value("reverb")),
+      sway: Number(value("sway")),
+      tuning: sonata.tunable ? value("tuning") : "exact",
+      tempo: Number(value("tempo")),
+      weather: checked("weather"),
+      drift: checked("drift"),
+      driftSpeed: value("drift-speed"),
+    },
+    mood: page.weatherOn() ? { icon: icon ?? "", ...mood } : null,
+  };
+}
+
+// 評価のボタンは、楽章を始めてから次の楽章を始めるまで出す（楽章のあいだの沈黙や、終わったあとも評価できる）
+const ratingButtons = [...ratingEl.querySelectorAll<HTMLButtonElement>("button[data-rating]")];
+function showRating() {
+  ratingEl.hidden = listening === null;
+  for (const b of ratingButtons) b.setAttribute("aria-pressed", "false");
+}
+function rateNow(rating: Rating) {
+  if (!listening) return;
+  rate(listening, rating, Tone.now());
+  for (const b of ratingButtons) b.setAttribute("aria-pressed", String(b.dataset.rating === rating));
+  updateRatingCount();
+}
+for (const b of ratingButtons) b.addEventListener("click", () => rateNow(b.dataset.rating as Rating));
+// キーの 1・2・3 でも評価できる（入力欄や選択にいるときは除く）
+window.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  const rating = ({ "1": "good", "2": "ok", "3": "bad" } as const)[e.key as "1" | "2" | "3"];
+  if (rating) rateNow(rating);
+});
+
+const updateRatingCount = () => (ratingCountEl.value = String(loadRecords().length));
+updateRatingCount();
+document.querySelector("#rating-json")!.addEventListener("click", exportJson);
+document.querySelector("#rating-csv")!.addEventListener("click", exportCsv);
+document.querySelector("#rating-clear")!.addEventListener("click", () => {
+  if (!confirm(t({ ja: "評価の記録をすべて消します。よろしいですか？", en: "Delete all ratings?" }))) return;
+  clearRecords();
+  updateRatingCount();
+  for (const b of ratingButtons) b.setAttribute("aria-pressed", "false");
+});
+
 // 今の楽章。null のときは、始まる前か、ソナタが終わったあと
 let index = 0;
 let run: MovementRun | null = null;
@@ -241,6 +354,10 @@ function startMovement(i: number) {
   piano.releaseAll();
   index = i;
   movementEl.value = String(i);
+  seed = fixedSeed() ?? seed;
+  seedRandom(`${seed}:${sonata.id}:${i}`);
+  listening = newListening(i);
+  showRating();
   run = sonata.movements[i].start(context);
   startedAt = Tone.now();
   nextAt = Infinity;
@@ -259,7 +376,9 @@ Tone.loaded().then(
   },
 );
 
-function request(i: number) {
+// fresh: 新しい演奏として始める（種を固定していなければ、新しい種を引く）。楽章を選び直したときは、今の種のまま
+function request(i: number, fresh = false) {
+  if (fresh && !fixedSeed()) seed = newSeed();
   requested = i;
   movementEl.value = String(i);
   void page.ensureStarted();
@@ -273,13 +392,13 @@ composerEl.addEventListener("change", () => {
   fillSelects();
   page.refreshScale();
   applyTuning();
-  if (playing()) request(0);
+  if (playing()) request(0, true);
 });
 movementEl.addEventListener("change", () => {
   if (playing()) request(Number(movementEl.value));
 });
 restartEl.addEventListener("click", () => {
-  if (playing()) request(0);
+  if (playing()) request(0, true);
   else movementEl.value = "0";
 });
 
@@ -294,6 +413,7 @@ page.transport.scheduleRepeat(() => {
   if (run?.finished()) {
     run.stop();
     run = null;
+    if (listening) listening.finishedAt = Tone.now();
     if (index < sonata.movements.length - 1) nextAt = Tone.now() + GAP_BETWEEN;
     else ended = true;
   }
@@ -330,6 +450,12 @@ function draw() {
       ? `${clock(Tone.now() - startedAt)} / ${clock(movement.duration)}`
       : "";
   g.fillText(`${t(sonata.composer)}  ${t(movement.title)}  ${status}`, width - 24, height - 40);
+  // その下に、今の演奏の種（設定の「種」に入れると、同じ演奏をもう一度聴ける）
+  if (run || ended) {
+    g.font = "11px system-ui, sans-serif";
+    g.fillStyle = "rgba(255, 255, 255, 0.35)";
+    g.fillText(`${t({ ja: "種", en: "seed" })} ${seed}`, width - 24, height - 22);
+  }
 }
 
 function frame() {
@@ -341,11 +467,13 @@ function frame() {
 canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
   if (run) {
-    run.pointer(e.clientX, e.clientY, height);
+    const r = run;
+    keepRandom(() => r.pointer(e.clientX, e.clientY, height));
+    if (listening) listening.clicks++;
     return;
   }
-  if (ended) request(0);
-  else if (requested === null && nextAt === Infinity) request(Number(movementEl.value));
+  if (ended) request(0, true);
+  else if (requested === null && nextAt === Infinity) request(Number(movementEl.value), true);
   else void page.ensureStarted(); // 頼んであるが、まだ音を出せていない
 });
 

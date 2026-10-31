@@ -1,7 +1,7 @@
 import * as Tone from "tone";
 import { pitchAt, pitchIndexAt } from "../scales";
 import { t } from "../i18n";
-import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, random, type Sonata, yOf } from "./movement";
+import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, rand, random, type Sonata, yOf } from "./movement";
 
 // スティーヴ・ライヒがピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // I.  フェイズ: 両手が同じ 12 音の型を弾き、片方の手だけがほんの少し速くなって 1 音ずつ前へずれ、また重なる。12 回ずれると、元のそろった形に戻る。
@@ -37,7 +37,7 @@ const phase: Movement = {
 
     // 5 つの音高で作る 12 音の型。前半と後半で同じ音を違う順に使う
     const notes = middleNotes(ctx.pitches().length, 5);
-    const half = () => Array.from({ length: PATTERN_LENGTH / 2 }, (_, i) => notes[(i * 2 + Math.floor(Math.random() * 3)) % notes.length]);
+    const half = () => Array.from({ length: PATTERN_LENGTH / 2 }, (_, i) => notes[(i * 2 + Math.floor(rand() * 3)) % notes.length]);
     const pattern = [...half(), ...half()];
     const glow = { a: pattern.map(() => 0), b: pattern.map(() => 0) };
 
@@ -54,7 +54,7 @@ const phase: Movement = {
 
     // 和音の移り: 型の形はそのままに、音階の上で何段かずらす（音程の関係が変わり、和音の性格が変わる）。
     // 最初と最後（そろった形に戻ったとき）は、ずらさない
-    const moves = [-3, -2, 2, 3, 4].sort(() => Math.random() - 0.5);
+    const moves = [-3, -2, 2, 3, 4].sort(() => rand() - 0.5);
     const chords = [0, moves[0], moves[1], moves[2]];
     const chordOf = (progress: number) => {
       const stage = Math.floor(stageOf(progress));
@@ -76,7 +76,7 @@ const phase: Movement = {
     const strike = (index: number, time: number, velocity: number, octaveDown: boolean, glowOf: number[]) => {
       const at = index % PATTERN_LENGTH;
       const freq = pitchAt(ctx.pitches(), pattern[at] + transpose).freq / (octaveDown ? 2 : 1);
-      piano.triggerAttackRelease(freq, Tone.Time("16n").toSeconds() * 1.5, time + Math.random() * 0.004, velocity);
+      piano.triggerAttackRelease(freq, Tone.Time("16n").toSeconds() * 1.5, time + rand() * 0.004, velocity);
       Tone.getDraw().schedule(() => {
         if (glowOf === glow.a) playingA = at;
         else playingB = at;
@@ -202,8 +202,8 @@ const pulses: Movement = {
     const CHORDS = 9;
     while (chords.length < CHORDS - 1) {
       const chord = [...chords[chords.length - 1]];
-      const at = Math.floor(Math.random() * chord.length);
-      chord[at] = Math.min(Math.max(chord[at] + (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 2)), 0), count - 1);
+      const at = Math.floor(rand() * chord.length);
+      chord[at] = Math.min(Math.max(chord[at] + (rand() < 0.5 ? -1 : 1) * (1 + Math.floor(rand() * 2)), 0), count - 1);
       chords.push([...new Set(chord)].sort((a, b) => a - b));
     }
     chords.push(first);
@@ -244,7 +244,7 @@ const pulses: Movement = {
       // 8 分の刻みで、和音を上下の 2 群に分けて交互に鳴らす（刻みが揺れて聞こえる）
       const notes = [...chord, ...added];
       const group = notes.filter((_, i) => i % 2 === pulse % 2);
-      for (const index of group) piano.triggerAttackRelease(pitchAt(pitches, index).freq, 0.3, time + Math.random() * 0.006, 0.08 + peak * envelope);
+      for (const index of group) piano.triggerAttackRelease(pitchAt(pitches, index).freq, 0.3, time + rand() * 0.006, 0.08 + peak * envelope);
       // 息の始まりに、低い音を長く置く
       if (within === 0 || pulse === 0) piano.triggerAttackRelease(pitchAt(pitches, Math.max(chord[0] - 5, 0)).freq / 2, breathSeconds(), time, 0.2 + peak * 0.4);
       pulse++;
@@ -309,14 +309,14 @@ const buildUp: Movement = {
 
     // 型の音高は 4 つの音から。休符を音に置き換える順番は、決まった順でなく偶然
     const notes = middleNotes(ctx.pitches().length, 4);
-    const pattern = Array.from({ length: SLOTS }, () => notes[Math.floor(Math.random() * notes.length)]);
+    const pattern = Array.from({ length: SLOTS }, () => notes[Math.floor(rand() * notes.length)]);
     const newVoice = (offset: number, octave: number, hue: number, enters: number): Voice => ({
       offset, octave, hue, enters, on: Array(SLOTS).fill(false), glow: Array(SLOTS).fill(0),
     });
     const voices = [
       newVoice(0, 0, 28, 0),
-      newVoice(2 + Math.floor(Math.random() * 3) * 2 + 1, -1, 200, 0.22), // ずらし方は奇数拍（すき間に入り込む）
-      newVoice(2 + Math.floor(Math.random() * 4) * 2, 1, 300, 0.45),
+      newVoice(2 + Math.floor(rand() * 3) * 2 + 1, -1, 200, 0.22), // ずらし方は奇数拍（すき間に入り込む）
+      newVoice(2 + Math.floor(rand() * 4) * 2, 1, 300, 0.45),
     ];
     voices[0].on[0] = true;
 
@@ -344,10 +344,10 @@ const buildUp: Movement = {
           const goal = target(voice, index, progress);
           if (count < goal) {
             const rests = voice.on.flatMap((on, i) => (on ? [] : [i]));
-            voice.on[rests[Math.floor(Math.random() * rests.length)]] = true;
+            voice.on[rests[Math.floor(rand() * rests.length)]] = true;
           } else if (count > goal) {
             const struck = voice.on.flatMap((on, i) => (on && !(index === 0 && i === 0) ? [i] : []));
-            if (struck.length) voice.on[struck[Math.floor(Math.random() * struck.length)]] = false;
+            if (struck.length) voice.on[struck[Math.floor(rand() * struck.length)]] = false;
           }
         });
         // 最初の 1 音だけに戻ったら、終える。戻らないまま長引いたら、そこで終える
@@ -367,7 +367,7 @@ const buildUp: Movement = {
         if (!voice.on[at]) return;
         const freq = pitchAt(pitches, pattern[at]).freq * 2 ** voice.octave;
         const accent = at === 0 ? 1.2 : 1;
-        piano.triggerAttackRelease(freq, Tone.Time("8n").toSeconds() * 0.9, time + Math.random() * 0.005, Math.min(1, dynamics * accent * (voice.octave === 1 ? 0.75 : 1)));
+        piano.triggerAttackRelease(freq, Tone.Time("8n").toSeconds() * 0.9, time + rand() * 0.005, Math.min(1, dynamics * accent * (voice.octave === 1 ? 0.75 : 1)));
         Tone.getDraw().schedule(() => (voice.glow[at] = 1), time);
       });
       const current = slot;

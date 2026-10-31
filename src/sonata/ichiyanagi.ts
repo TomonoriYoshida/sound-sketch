@@ -1,7 +1,7 @@
 import * as Tone from "tone";
 import { pitchAt, pitchIndexAt } from "../scales";
 import { t } from "../i18n";
-import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, random, type Sonata, yOf } from "./movement";
+import { after, MARGIN_LEFT, MARGIN_RIGHT, type Movement, rand, random, type Sonata, yOf } from "./movement";
 
 // 一柳慧がピアノソナタを書いたら、という試み。曲そのものは引用せず、作り方だけを借りている。
 // I.  反復のずれ（『ピアノ・メディア』のころ）: 両手が長さの違う短い型を同じ刻みで繰り返し、重なり方がずれていく
@@ -61,17 +61,17 @@ const shifting: Movement = {
     const randomNote = (hand: Hand, from: number) => {
       const { size } = rangeOf(hand);
       for (;;) {
-        const next = from + (1 + Math.floor(Math.random() * maxStep)) * (Math.random() < 0.5 ? -1 : 1);
+        const next = from + (1 + Math.floor(rand() * maxStep)) * (rand() < 0.5 ? -1 : 1);
         if (next >= 0 && next < size) return next;
       }
     };
     const generate = (hand: Hand, length: number) => {
-      let note = 1 + Math.floor(Math.random() * (rangeOf(hand).size - 2));
+      let note = 1 + Math.floor(rand() * (rangeOf(hand).size - 2));
       hand.pattern = [note];
       while (hand.pattern.length < length) hand.pattern.push((note = randomNote(hand, note)));
       hand.glow = hand.pattern.map(() => 0);
     };
-    const length = 5 + Math.floor(Math.random() * 3);
+    const length = 5 + Math.floor(rand() * 3);
     generate(right, length);
     generate(left, length + 1);
 
@@ -87,17 +87,17 @@ const shifting: Movement = {
     // 1 周したときに、ときどき型を変える。1 音足す・1 音抜く・頭を 1 つずらす・1 音を変える
     const mutate = (hand: Hand) => {
       const p = hand.pattern;
-      const roll = Math.random();
+      const roll = rand();
       if (roll < 0.3 && p.length < MAX_LENGTH) {
-        const at = Math.floor(Math.random() * (p.length + 1));
+        const at = Math.floor(rand() * (p.length + 1));
         insertAt(hand, at, randomNote(hand, p[Math.max(0, at - 1)]));
       } else if (roll < 0.6 && p.length > MIN_LENGTH) {
-        removeAt(hand, Math.floor(Math.random() * p.length));
+        removeAt(hand, Math.floor(rand() * p.length));
       } else if (roll < 0.8) {
         p.push(p.shift()!);
         hand.glow.push(hand.glow.shift()!);
       } else {
-        const at = Math.floor(Math.random() * p.length);
+        const at = Math.floor(rand() * p.length);
         p[at] = randomNote(hand, p[at]);
       }
       hand.position %= p.length;
@@ -105,7 +105,7 @@ const shifting: Movement = {
     // 終盤: 右手 5 音・左手 6 音に 1 音ずつ寄せる（そろうと、30 拍ごとに両手の頭が重なる）
     const settle = (hand: Hand) => {
       const target = hand.upper ? SETTLED_RIGHT : SETTLED_RIGHT + 1;
-      if (hand.pattern.length > target) removeAt(hand, Math.floor(Math.random() * hand.pattern.length));
+      if (hand.pattern.length > target) removeAt(hand, Math.floor(rand() * hand.pattern.length));
       else if (hand.pattern.length < target) insertAt(hand, hand.pattern.length, randomNote(hand, hand.pattern[hand.pattern.length - 1]));
       hand.position %= hand.pattern.length;
     };
@@ -142,9 +142,9 @@ const shifting: Movement = {
         if (!hand.upper && progress < LEFT_ENTERS) continue; // 左手は、入るまで頭で待つ
         const at = hand.position;
         const accent = hand.count % hand.accentCycle === 0;
-        const velocity = (accent ? 0.9 : 0.55 + Math.random() * 0.08) * dynamics(progress) * (hand.upper ? 1 : 0.9);
+        const velocity = (accent ? 0.9 : 0.55 + rand() * 0.08) * dynamics(progress) * (hand.upper ? 1 : 0.9);
         const freq = pitchAt(ctx.pitches(), absoluteIndex(hand, hand.pattern[at])).freq;
-        piano.triggerAttackRelease(freq, sixteenth * 1.6, time + Math.random() * 0.006, velocity);
+        piano.triggerAttackRelease(freq, sixteenth * 1.6, time + rand() * 0.006, velocity);
         Tone.getDraw().schedule(() => {
           hand.playing = at;
           if (at < hand.glow.length) hand.glow[at] = accent ? 1 : 0.7;
@@ -154,7 +154,7 @@ const shifting: Movement = {
         hand.position = (at + 1) % hand.pattern.length;
         if (hand.position !== 0) continue;
         if (progress >= ENDING_AT) settle(hand);
-        else if (Math.random() < mutateChance(progress)) mutate(hand);
+        else if (rand() < mutateChance(progress)) mutate(hand);
       }
       if (bothAtStart && progress >= LEFT_ENTERS) Tone.getDraw().schedule(() => (aligned = 1), time);
     }, "16n").start(after(transport, 0.05));
@@ -270,9 +270,9 @@ const silences: Movement = {
     const event = (time: number) => {
       const count = ctx.pitches().length;
       const seconds = random(6, 10); // ペダルを踏んだまま
-      const roll = Math.random();
+      const roll = rand();
       if (roll < 0.5) {
-        play(time, Math.floor(Math.random() * count), random(0.25, 0.55), seconds);
+        play(time, Math.floor(rand() * count), random(0.25, 0.55), seconds);
       } else if (roll < 0.8) {
         play(time, Math.floor(random(0, count / 3)), random(0.25, 0.45), seconds);
         play(time + random(0, 0.04), Math.floor(random((2 * count) / 3, count)), random(0.2, 0.4), seconds);
@@ -371,7 +371,7 @@ const toccata: Movement = {
       const span = 2 + progress * count() * 0.6; // 中央からの広がり
       const climb = progress > 0.6 ? 0.65 : 0.5; // 終盤は上がりやすい
       for (;;) {
-        const step = (1 + Math.floor(Math.random() * reach)) * (Math.random() < climb ? 1 : -1);
+        const step = (1 + Math.floor(rand() * reach)) * (rand() < climb ? 1 : -1);
         const note = from + step;
         if (note >= 0 && note < count() && Math.abs(note - centre) <= span) return note;
       }
@@ -410,7 +410,7 @@ const toccata: Movement = {
       const freq = pitchAt(pitches, melody[at]).freq / (leftHand ? 2 : 1);
       const accent = at === 0 || at === window - 1;
       const velocity = Math.min(1, (0.35 + 0.5 * Math.min(progress, 1)) * (accent ? 1.25 : 1) * (leftHand ? 0.9 : 1));
-      piano.triggerAttackRelease(freq, Tone.Time("16n").toSeconds() * 1.4, time + Math.random() * 0.005, velocity);
+      piano.triggerAttackRelease(freq, Tone.Time("16n").toSeconds() * 1.4, time + rand() * 0.005, velocity);
       Tone.getDraw().schedule(() => {
         playing = at;
         if (at < glow.length) glow[at] = accent ? 1 : 0.7;
